@@ -6,7 +6,5 @@ interface IMetaPoolFactory {
   
   function createPool(address tokenA, address tokenB) external returns (address pool);
 
-  function getDeployProps() external view returns (address, address, address);
-
-  function gelatoAddress() external view returns (address);
+  function getDeployProps() external view returns (address, address, address, address);
 }

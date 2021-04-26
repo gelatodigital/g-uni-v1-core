@@ -140,12 +140,12 @@ describe('MetaPools', function() {
     describe('rebalance', function() {
       it('should fail if not called by owner', async function() {
         await expect(
-          metaPool.connect(user1).rebalance(-443610, 443610, '3000')
+          metaPool.connect(user1).rebalance(-443610, 443610, '3000', 0, token0.address)
         ).to.be.reverted;
       });
     });
 
-    describe('with liquidity depositted', function() {
+    describe('with liquidity deposited', function() {
       beforeEach(async function() {
         await metaPool.mint('10000');
       });
@@ -171,18 +171,18 @@ describe('MetaPools', function() {
 
         describe('reinvest fees', function() {
           it('should redeposit fees with a rebalance', async function() {
-            await metaPool.connect(gelato).rebalance(-887220, 887220, '3000');
+            await metaPool.connect(gelato).rebalance(-887220, 887220, '3000', 0, token0.address);
 
             expect(await token0.balanceOf(uniswapPool.address)).to.equal('10200');
             expect(await token1.balanceOf(uniswapPool.address)).to.equal('10200');
             const [liquidity2] = await uniswapPool.positions(position(metaPool.address, -887220, 887220));
-            expect(liquidity2).to.equal('10099');
+            expect(liquidity2).to.equal('10098');
           });
         });
 
         describe('rebalance', function() {
           it('should change the ticks and rebalance', async function() {
-            await metaPool.connect(gelato).rebalance(-443580, 443580, '3000');
+            await metaPool.connect(gelato).rebalance(-443580, 443580, '3000', 0, token0.address);
 
             const [liquidityOld] = await uniswapPool.positions(position(metaPool.address, -887220, 887220));
             expect(liquidityOld).to.equal('0');
@@ -197,7 +197,7 @@ describe('MetaPools', function() {
             const pool2 = await ethers.getContractAt('IUniswapV3Pool', uniswapPoolAddress);
             await pool2.initialize(encodePriceSqrt('1', '1'));
 
-            await metaPool.connect(gelato).rebalance(-443580, 443580, 500);
+            await metaPool.connect(gelato).rebalance(-443580, 443580, 500, 0, token0.address);
 
             const [liquidityOld] = await uniswapPool.positions(position(metaPool.address, -887220, 887220));
             expect(liquidityOld).to.equal('0');
@@ -216,20 +216,20 @@ describe('MetaPools', function() {
 
         describe('reinvest fees', function() {
           it('should redeposit fees with a rebalance', async function() {
-            await metaPool.connect(gelato).rebalance(-887220, 887220, '3000');
+            await metaPool.connect(gelato).rebalance(-887220, 887220, '3000', 0, token0.address);
 
             expect(await token0.balanceOf(uniswapPool.address)).to.equal('10299');
             expect(await token1.balanceOf(uniswapPool.address)).to.equal('10100');
             expect(await token0.balanceOf(metaPool.address)).to.equal('1');
             expect(await token1.balanceOf(metaPool.address)).to.equal('0');
             const [liquidity2] = await uniswapPool.positions(position(metaPool.address, -887220, 887220));
-            expect(liquidity2).to.equal('10097');
+            expect(liquidity2).to.equal('10096');
           });
         });
 
         describe('rebalance', function() {
           it('should change the ticks and rebalance', async function() {
-            await metaPool.connect(gelato).rebalance(-443580, 443580, '3000');
+            await metaPool.connect(gelato).rebalance(-443580, 443580, '3000', 0, token0.address);
 
             const [liquidityOld] = await uniswapPool.positions(position(metaPool.address, -887220, 887220));
             expect(liquidityOld).to.equal('0');
@@ -244,7 +244,7 @@ describe('MetaPools', function() {
             const pool2 = await ethers.getContractAt('IUniswapV3Pool', uniswapPoolAddress);
             await pool2.initialize(encodePriceSqrt('1', '1'));
 
-            await metaPool.connect(gelato).rebalance(-443580, 443580, 500);
+            await metaPool.connect(gelato).rebalance(-443580, 443580, 500, 0, token0.address);
 
             const [liquidityOld] = await uniswapPool.positions(position(metaPool.address, -887220, 887220));
             expect(liquidityOld).to.equal('0');

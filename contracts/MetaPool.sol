@@ -12,8 +12,9 @@ import { IMetaPoolFactory } from "./interfaces/IMetaPoolFactory.sol";
 import { TransferHelper } from "./libraries/TransferHelper.sol";
 import { LiquidityAmounts } from "./libraries/LiquidityAmounts.sol";
 import { ERC20 } from "./ERC20.sol";
+import { Gelatofied } from "./Gelatofied.sol";
 
-contract MetaPool is IUniswapV3MintCallback, IUniswapV3SwapCallback, ERC20 {
+contract MetaPool is IUniswapV3MintCallback, IUniswapV3SwapCallback, ERC20, Gelatofied {
   using LowGasSafeMath for uint256;
 
   IMetaPoolFactory public immutable factory;
@@ -27,20 +28,23 @@ contract MetaPool is IUniswapV3MintCallback, IUniswapV3SwapCallback, ERC20 {
   IUniswapV3Pool public currentPool;
   IUniswapV3Factory public immutable uniswapFactory;
 
+  address public immutable gelato;
+
   uint24 private constant DEFAULT_UNISWAP_FEE = 3000;
   int24 private constant MIN_TICK = -887220;
   int24 private constant MAX_TICK = 887220;
 
   event ParamsAdjusted(int24 newLowerTick, int24 newUpperTick, uint24 newUniswapFee);
 
-  constructor() {
+  constructor() Gelatofied() {
     IMetaPoolFactory _factory = IMetaPoolFactory(msg.sender);
     factory = _factory;
 
-    (address _token0, address _token1, address _uniswapFactory) = _factory.getDeployProps();
+    (address _token0, address _token1, address _uniswapFactory, address _gelato) = _factory.getDeployProps();
     token0 = _token0;
     token1 = _token1;
     uniswapFactory = IUniswapV3Factory(_uniswapFactory);
+    gelato = _gelato;
 
     // All metapools start with 0.30% fees & liquidity spread across the entire curve
     currentLowerTick = MIN_TICK;
@@ -106,47 +110,62 @@ contract MetaPool is IUniswapV3MintCallback, IUniswapV3SwapCallback, ERC20 {
     );
   }
 
-  function rebalance(int24 newLowerTick, int24 newUpperTick, uint24 newUniswapFee) external {
-    // Read all this from storage to minimize SLOADs
-    require(msg.sender == factory.gelatoAddress(), "only gelato");
-    (IUniswapV3Pool _currentPool, int24 _currentLowerTick, int24 _currentUpperTick, uint24 _currentUniswapFee) =
-      (currentPool, currentLowerTick, currentUpperTick, currentUniswapFee);
-
+  function rebalance(int24 newLowerTick, int24 newUpperTick, uint24 newUniswapFee, uint256 feeAmount, address paymentToken) external gelatofy(payable(gelato), feeAmount, paymentToken) {
     // If we're swapping pools
-    if (_currentUniswapFee != newUniswapFee) {
-      bytes32 positionID = keccak256(abi.encodePacked(address(this), _currentLowerTick, _currentUpperTick));
-      (uint128 _liquidity,,,,) = _currentPool.positions(positionID);
-      (uint256 collected0, uint256 collected1) = withdraw(_currentPool, _currentLowerTick, _currentUpperTick, _liquidity, address(this));
-
-      IUniswapV3Pool newPool = IUniswapV3Pool(uniswapFactory.getPool(token0, token1, newUniswapFee));
-      // Store new paramaters as "current"
-      (
-        currentLowerTick,
-        currentUpperTick,
-        currentUniswapFee,
-        currentPool
-      ) = (
-        newLowerTick,
-        newUpperTick,
-        newUniswapFee,
-        newPool
-      );
-
-      deposit(newPool, newLowerTick, newUpperTick, collected0, collected1);
-    } else if (_currentLowerTick != newLowerTick || _currentUpperTick != newUpperTick) {
-      // We're just adjusting ticks
-      bytes32 positionID = keccak256(abi.encodePacked(address(this), _currentLowerTick, _currentUpperTick));
-      (uint128 _liquidity,,,,) = _currentPool.positions(positionID);
-      (uint256 collected0, uint256 collected1) = withdraw(_currentPool, _currentLowerTick, _currentUpperTick, _liquidity, address(this));
-      
-      // Store new ticks
-      (currentLowerTick, currentUpperTick) = (newLowerTick, newUpperTick);
-      
-      deposit(_currentPool, newLowerTick, newUpperTick, collected0, collected1);
+    if (currentUniswapFee != newUniswapFee) {
+      switchPools(newLowerTick, newUpperTick, newUniswapFee, feeAmount, paymentToken);
     } else {
-      (uint256 collected0, uint256 collected1) = withdraw(_currentPool, _currentLowerTick, _currentUpperTick, 0, address(this));
-      deposit(_currentPool, _currentLowerTick, _currentUpperTick, collected0, collected1);
+      // Else we're just adjusting ticks or reinvesting fees
+      adjustCurrentPool(newLowerTick, newUpperTick, feeAmount, paymentToken);
     }
+  }
+
+  function switchPools(int24 newLowerTick, int24 newUpperTick, uint24 newUniswapFee, uint256 feeAmount, address paymentToken) private {
+    (IUniswapV3Pool _currentPool, int24 _currentLowerTick, int24 _currentUpperTick) =
+      (currentPool, currentLowerTick, currentUpperTick);
+    uint256 reinvest0;
+    uint256 reinvest1;
+    {
+      bytes32 positionID = keccak256(abi.encodePacked(address(this), _currentLowerTick, _currentUpperTick));
+      (uint128 _liquidity,,,,) = _currentPool.positions(positionID);
+      (uint256 collected0, uint256 collected1) = withdraw(_currentPool, _currentLowerTick, _currentUpperTick, _liquidity, address(this));
+      reinvest0 = paymentToken == token0 ? collected0.sub(feeAmount) : collected0;
+      reinvest1 = paymentToken == token1 ? collected1.sub(feeAmount) : collected1;
+    }
+
+    IUniswapV3Pool newPool = IUniswapV3Pool(uniswapFactory.getPool(token0, token1, newUniswapFee));
+    // Store new paramaters as "current"
+    (
+      currentLowerTick,
+      currentUpperTick,
+      currentUniswapFee,
+      currentPool
+    ) = (
+      newLowerTick,
+      newUpperTick,
+      newUniswapFee,
+      newPool
+    );
+
+    deposit(newPool, newLowerTick, newUpperTick, reinvest0, reinvest1);
+  }
+
+  function adjustCurrentPool(int24 newLowerTick, int24 newUpperTick, uint256 feeAmount, address paymentToken) private {
+    (IUniswapV3Pool _currentPool, int24 _currentLowerTick, int24 _currentUpperTick) =
+      (currentPool, currentLowerTick, currentUpperTick);
+
+    bytes32 positionID = keccak256(abi.encodePacked(address(this), _currentLowerTick, _currentUpperTick));
+    (uint128 _liquidity,,,,) = _currentPool.positions(positionID);
+    (uint256 collected0, uint256 collected1) = withdraw(_currentPool, _currentLowerTick, _currentUpperTick, _liquidity, address(this));
+    uint256 reinvest0 = paymentToken == token0 ? collected0.sub(feeAmount) : collected0;
+    uint256 reinvest1 = paymentToken == token1 ? collected1.sub(feeAmount) : collected1;
+    
+    // If ticks were adjusted
+    if (_currentLowerTick != newLowerTick || _currentUpperTick != newUpperTick) {
+      (currentLowerTick, currentUpperTick) = (newLowerTick, newUpperTick);
+    }
+
+    deposit(_currentPool, newLowerTick, newUpperTick, reinvest0, reinvest1);
   }
 
   function deposit(

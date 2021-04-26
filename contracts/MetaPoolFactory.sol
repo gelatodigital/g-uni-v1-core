@@ -46,11 +46,7 @@ contract MetaPoolFactory is IMetaPoolFactory {
     emit PoolCreated(token0, token1, pool);
   }
 
-  function gelatoAddress() external view override returns (address) {
-    return gelato;
-  }
-
-  function getDeployProps() external view override returns (address, address, address) {
-    return (_token0, _token1, uniswapFactory);
+  function getDeployProps() external view override returns (address, address, address, address) {
+    return (_token0, _token1, uniswapFactory, gelato);
   }
 }
