@@ -15,7 +15,7 @@ contract SwapTest is IUniswapV3SwapCallback {
     {
         (uint160 sqrtRatio, , , , , , ) = IUniswapV3Pool(pool).slot0();
         IUniswapV3Pool(pool).swap(
-            address(0),
+            address(msg.sender),
             zeroForOne,
             amountSpecified,
             zeroForOne ? sqrtRatio - 1 : sqrtRatio + 1,
@@ -35,7 +35,7 @@ contract SwapTest is IUniswapV3SwapCallback {
             bool zeroForOne = i % ratio > 0;
             (uint160 sqrtRatio, , , , , , ) = IUniswapV3Pool(pool).slot0();
             IUniswapV3Pool(pool).swap(
-                address(0),
+                address(msg.sender),
                 zeroForOne,
                 amountSpecified,
                 zeroForOne ? sqrtRatio - 1 : sqrtRatio + 1,
@@ -60,7 +60,7 @@ contract SwapTest is IUniswapV3SwapCallback {
         )
     {
         (amount0Delta, amount1Delta) = IUniswapV3Pool(pool).swap(
-            address(0),
+            address(msg.sender),
             zeroForOne,
             amountSpecified,
             sqrtPriceLimitX96,

@@ -110,7 +110,7 @@ contract MetaPool is IUniswapV3MintCallback, IUniswapV3SwapCallback, ERC20, Gela
     );
   }
 
-  function rebalance(int24 newLowerTick, int24 newUpperTick, uint24 newUniswapFee, uint256 feeAmount, address paymentToken) external gelatofy(payable(gelato), feeAmount, paymentToken) {
+  function rebalance(int24 newLowerTick, int24 newUpperTick, uint24 newUniswapFee, uint256 feeAmount, address paymentToken) external gelatofy(gelato, feeAmount, paymentToken) {
     // If we're swapping pools
     if (currentUniswapFee != newUniswapFee) {
       switchPools(newLowerTick, newUpperTick, newUniswapFee, feeAmount, paymentToken);

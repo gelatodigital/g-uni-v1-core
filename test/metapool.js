@@ -1,6 +1,5 @@
 const { expect } = require('chai');
 const bn = require('bignumber.js');
-const e = require('cors');
 
 bn.config({ EXPONENTIAL_AT: 999999, DECIMAL_PLACES: 40 })
 
