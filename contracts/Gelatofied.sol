@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.7.3;
 
-import { TransferHelper } from "./libraries/TransferHelper.sol";
+import {TransferHelper} from "./libraries/TransferHelper.sol";
 
 abstract contract Gelatofied {
-
     address public constant ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     constructor() {}
 
-    modifier gelatofy(address _gelato, uint256 _amount, address _paymentToken) {
+    modifier gelatofy(
+        address _gelato,
+        uint256 _amount,
+        address _paymentToken
+    ) {
         require(msg.sender == _gelato, "Gelatofied: Only gelato");
         _;
         if (_paymentToken == ETH) {

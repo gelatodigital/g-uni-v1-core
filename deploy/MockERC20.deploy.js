@@ -5,7 +5,7 @@ module.exports = async (hre) => {
     hre.network.name === "ropsten"
   ) {
     console.log(
-      `!! Deploying MetaPoolFactory to mainnet/testnet. Hit ctrl + c to abort`
+      `!! Deploying MockERC20 to mainnet/testnet. Hit ctrl + c to abort`
     );
     await new Promise((r) => setTimeout(r, 20000));
   }
@@ -14,9 +14,9 @@ module.exports = async (hre) => {
   const { deploy } = deployments;
   const { deployer } = await hre.getNamedAccounts();
 
-  await deploy("MetaPoolFactory", {
+  await deploy("MockERC20", {
     from: deployer,
-    args: [hre.network.config.UniswapV3Factory, hre.network.config.Gelato],
+    args: [],
   });
 };
 
@@ -29,4 +29,4 @@ module.exports.skip = async (hre) => {
   return skip ? true : false;
 };
 
-module.exports.tags = ["GULP"];
+module.exports.tags = ["MockERC20"];

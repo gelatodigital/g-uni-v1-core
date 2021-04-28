@@ -1,24 +1,28 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.7.0;
 
-import { IERC20Minimal } from "@uniswap/v3-core/contracts/interfaces/IERC20Minimal.sol";
-import { IUniswapV3SwapCallback } from "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
-import { IUniswapV3Pool } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+import {
+    IERC20Minimal
+} from "@uniswap/v3-core/contracts/interfaces/IERC20Minimal.sol";
+import {
+    IUniswapV3SwapCallback
+} from "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
+import {
+    IUniswapV3Pool
+} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
 contract SwapTest is IUniswapV3SwapCallback {
     function swap(
         address pool,
         bool zeroForOne,
         int256 amountSpecified
-    )
-        external
-    {
+    ) external {
         (uint160 sqrtRatio, , , , , , ) = IUniswapV3Pool(pool).slot0();
         IUniswapV3Pool(pool).swap(
             address(msg.sender),
             zeroForOne,
             amountSpecified,
-            zeroForOne ? sqrtRatio - 1 : sqrtRatio + 1,
+            zeroForOne ? sqrtRatio - 1000 : sqrtRatio + 1000,
             abi.encode(msg.sender)
         );
     }
@@ -28,23 +32,19 @@ contract SwapTest is IUniswapV3SwapCallback {
         int256 amountSpecified,
         uint256 numTrades,
         uint256 ratio
-    )
-        external
-    {
-        for (uint i = 0; i < numTrades; i++) {
+    ) external {
+        for (uint256 i = 0; i < numTrades; i++) {
             bool zeroForOne = i % ratio > 0;
             (uint160 sqrtRatio, , , , , , ) = IUniswapV3Pool(pool).slot0();
             IUniswapV3Pool(pool).swap(
                 address(msg.sender),
                 zeroForOne,
                 amountSpecified,
-                zeroForOne ? sqrtRatio - 1 : sqrtRatio + 1,
+                zeroForOne ? sqrtRatio - 1000 : sqrtRatio + 1000,
                 abi.encode(msg.sender)
             );
         }
     }
-
-
 
     function getSwapResult(
         address pool,
@@ -78,9 +78,17 @@ contract SwapTest is IUniswapV3SwapCallback {
         address sender = abi.decode(data, (address));
 
         if (amount0Delta > 0) {
-            IERC20Minimal(IUniswapV3Pool(msg.sender).token0()).transferFrom(sender, msg.sender, uint256(amount0Delta));
+            IERC20Minimal(IUniswapV3Pool(msg.sender).token0()).transferFrom(
+                sender,
+                msg.sender,
+                uint256(amount0Delta)
+            );
         } else if (amount1Delta > 0) {
-            IERC20Minimal(IUniswapV3Pool(msg.sender).token1()).transferFrom(sender, msg.sender, uint256(amount1Delta));
+            IERC20Minimal(IUniswapV3Pool(msg.sender).token1()).transferFrom(
+                sender,
+                msg.sender,
+                uint256(amount1Delta)
+            );
         }
     }
 }
