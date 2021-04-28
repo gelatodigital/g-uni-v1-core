@@ -2,9 +2,11 @@ import { HardhatUserConfig } from "hardhat/config";
 
 // PLUGINS
 import "@nomiclabs/hardhat-waffle";
+import "@nomiclabs/hardhat-etherscan";
 import "@typechain/hardhat";
 import "hardhat-deploy";
 import "hardhat-deploy-ethers";
+import "solidity-coverage";
 import "./lib/uniswap";
 
 // TASKS
@@ -25,6 +27,10 @@ const config: HardhatUserConfig = {
     deployer: {
       default: 0,
     },
+  },
+
+  etherscan: {
+    apiKey: process.env.ETHERSCAN_API_KEY,
   },
 
   networks: {
