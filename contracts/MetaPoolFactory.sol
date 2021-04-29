@@ -10,6 +10,9 @@ contract MetaPoolFactory is IMetaPoolFactory {
     address private _token0;
     address private _token1;
 
+    int24 private _initialLowerTick;
+    int24 private _initialUpperTick;
+
     address public immutable uniswapFactory;
     address public immutable gelato;
 
@@ -43,11 +46,12 @@ contract MetaPoolFactory is IMetaPoolFactory {
             );
     }
 
-    function createPool(address tokenA, address tokenB)
-        external
-        override
-        returns (address pool)
-    {
+    function createPool(
+        address tokenA,
+        address tokenB,
+        int24 initialLowerTick,
+        int24 initialUpperTick
+    ) external override returns (address pool) {
         require(tokenA != tokenB);
         (address token0, address token1) =
             tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
@@ -55,6 +59,8 @@ contract MetaPoolFactory is IMetaPoolFactory {
 
         _token0 = token0;
         _token1 = token1;
+        _initialLowerTick = initialLowerTick;
+        _initialUpperTick = initialUpperTick;
 
         pool = address(
             new MetaPool{salt: keccak256(abi.encodePacked(token0, token1))}()
@@ -62,6 +68,8 @@ contract MetaPoolFactory is IMetaPoolFactory {
 
         _token0 = address(0);
         _token1 = address(0);
+        _initialLowerTick = 0;
+        _initialUpperTick = 0;
 
         emit PoolCreated(token0, token1, pool);
     }
@@ -74,9 +82,18 @@ contract MetaPoolFactory is IMetaPoolFactory {
             address,
             address,
             address,
+            int24,
+            int24,
             address
         )
     {
-        return (_token0, _token1, uniswapFactory, gelato);
+        return (
+            _token0,
+            _token1,
+            uniswapFactory,
+            _initialLowerTick,
+            _initialUpperTick,
+            gelato
+        );
     }
 }
