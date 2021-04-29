@@ -109,7 +109,9 @@ describe("MetaPools", function () {
     it("Should create a metapool for an existing Uniswap V3 pool", async function () {
       const tx = await metaPoolFactory.createPool(
         token0.address,
-        token1.address
+        token1.address,
+        -887220,
+        887220
       );
       const receipt = await tx.wait();
       let checkAddress = "";
@@ -150,14 +152,31 @@ describe("MetaPools", function () {
     });
 
     it("Should fail to create a metapool if there is no Uniswap 0.3% pool", async function () {
-      await expect(metaPoolFactory.createPool(token0.address, nonExistantToken))
-        .to.be.reverted;
+      await expect(
+        metaPoolFactory.createPool(
+          token0.address,
+          nonExistantToken,
+          -887220,
+          887220
+        )
+      ).to.be.reverted;
     });
 
     it("Should fail to create the same pool twice", async function () {
-      await metaPoolFactory.createPool(token0.address, token1.address);
-      await expect(metaPoolFactory.createPool(token0.address, token1.address))
-        .to.be.reverted;
+      await metaPoolFactory.createPool(
+        token0.address,
+        token1.address,
+        -887220,
+        887220
+      );
+      await expect(
+        metaPoolFactory.createPool(
+          token0.address,
+          token1.address,
+          -887220,
+          887220
+        )
+      ).to.be.reverted;
     });
   });
 
@@ -165,7 +184,12 @@ describe("MetaPools", function () {
     let metaPool: MetaPool;
 
     beforeEach(async function () {
-      await metaPoolFactory.createPool(token0.address, token1.address);
+      await metaPoolFactory.createPool(
+        token0.address,
+        token1.address,
+        -887220,
+        887220
+      );
       const calculatedAddress = await metaPoolFactory.calculatePoolAddress(
         token0.address,
         token1.address

@@ -63,6 +63,8 @@ contract MetaPool is
             address _token0,
             address _token1,
             address _uniswapFactory,
+            int24 initialLowerTick,
+            int24 initialUpperTick,
             address _gelato
         ) = _factory.getDeployProps();
         token0 = _token0;
@@ -71,8 +73,8 @@ contract MetaPool is
         gelato = _gelato;
 
         // All metapools start with 0.30% fees & liquidity spread across the entire curve
-        currentLowerTick = MIN_TICK;
-        currentUpperTick = MAX_TICK;
+        currentLowerTick = initialLowerTick;
+        currentUpperTick = initialUpperTick;
         currentUniswapFee = DEFAULT_UNISWAP_FEE;
 
         address uniswapPool =

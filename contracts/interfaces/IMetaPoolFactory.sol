@@ -8,9 +8,12 @@ interface IMetaPoolFactory {
         address pool
     );
 
-    function createPool(address tokenA, address tokenB)
-        external
-        returns (address pool);
+    function createPool(
+        address tokenA,
+        address tokenB,
+        int24 initialLowerTick,
+        int24 initialUpperTick
+    ) external returns (address pool);
 
     function getDeployProps()
         external
@@ -19,6 +22,8 @@ interface IMetaPoolFactory {
             address,
             address,
             address,
+            int24,
+            int24,
             address
         );
 }
