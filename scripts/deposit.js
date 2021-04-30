@@ -3,22 +3,22 @@ const { ethers, network } = require("hardhat");
 const op = async (signer) => {
   const metapool = await ethers.getContractAt(
     "MetaPool",
-    network.config.GULP,
+    network.config.gUNIV3,
     signer
   );
-  const t0 = await ethers.getContractAt(
+  const weth = await ethers.getContractAt(
     ["function approve(address,uint256) external"],
-    network.config.T0,
+    network.config.WETH,
     signer
   );
-  const t1 = await ethers.getContractAt(
+  /*const dai = await ethers.getContractAt(
     ["function approve(address,uint256) external"],
-    network.config.T1,
+    network.config.DAI,
     signer
-  );
-  await t0.approve(metapool.address, ethers.utils.parseEther("5000"));
-  await t1.approve(metapool.address, ethers.utils.parseEther("5000"));
-  await metapool.mint(ethers.utils.parseEther("500"), { gasLimit: 1000000 });
+  );*/
+  await weth.approve(metapool.address, ethers.utils.parseEther("100"));
+  //await dai.approve(metapool.address, ethers.utils.parseEther("100"));
+  await metapool.mint(ethers.utils.parseEther("1000"), { gasLimit: 2000000 });
 };
 
 (async () => {

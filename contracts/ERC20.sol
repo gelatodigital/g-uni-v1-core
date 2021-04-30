@@ -6,8 +6,8 @@ import "@uniswap/v3-core/contracts/libraries/LowGasSafeMath.sol";
 contract ERC20 {
     using LowGasSafeMath for uint256;
 
-    string public constant name = "Gelato Uniswap V3 Liquidity Pool Token";
-    string public constant symbol = "GULP";
+    string public constant name = "Gelato Automated Uniswap V3 ETH/DAI LP";
+    string public constant symbol = "gUNI-V3";
     uint8 public constant decimals = 18;
     uint256 public totalSupply;
 

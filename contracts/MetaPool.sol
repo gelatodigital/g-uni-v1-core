@@ -448,4 +448,6 @@ contract MetaPool is
             );
         }
     }
+
+    receive() external payable {}
 }

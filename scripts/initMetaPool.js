@@ -7,8 +7,10 @@ const op = async (signer) => {
     signer
   );
   const tx = await metaPoolFactory.createPool(
-    network.config.T0,
-    network.config.T1,
+    network.config.WETH,
+    network.config.DAI,
+    -46560,
+    -45540,
     { gasLimit: 6000000 }
   );
   await tx.wait();

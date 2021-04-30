@@ -16,35 +16,48 @@ const encodePriceSqrt = (reserve1, reserve0) => {
 const op = async (signer) => {
   const metaPool = await ethers.getContractAt(
     "MetaPool",
-    network.config.GULP,
+    network.config.gUNIV3,
     signer
   );
   const uniPoolAddress = await metaPool.currentPool();
-  console.log(uniPoolAddress);
   const swapper = await ethers.getContractAt(
     "SwapTest",
     network.config.Swapper,
     signer
   );
-  const t0 = await ethers.getContractAt(
+
+  const dai = await ethers.getContractAt(
     ["function approve(address,uint256) external"],
-    network.config.T0,
+    network.config.DAI,
     signer
   );
-  const t1 = await ethers.getContractAt(
+  await dai.approve(swapper.address, ethers.utils.parseEther("200"));
+
+  /*const weth = await ethers.getContractAt(
     ["function approve(address,uint256) external"],
-    network.config.T1,
+    network.config.WETH,
     signer
   );
-  await t0.approve(swapper.address, ethers.utils.parseEther("10000"));
-  await t1.approve(swapper.address, ethers.utils.parseEther("10000"));
-  await swapper.getSwapResult(
+  await weth.approve(swapper.address, ethers.utils.parseEther("10"));*/
+
+  const tx = await swapper.getSwapResult(
     uniPoolAddress,
-    true,
-    ethers.utils.parseEther("100"),
-    encodePriceSqrt("1", "1"),
+    true, //false,
+    ethers.utils.parseEther("200"),
+    encodePriceSqrt("1", "10000"),
     { gasLimit: 6000000 }
   );
+  await tx.wait();
+
+  const pool = await ethers.getContractAt(
+    "IUniswapV3Pool",
+    uniPoolAddress,
+    signer
+  );
+
+  const { sqrtPriceX96, tick } = await pool.slot0();
+
+  console.log(sqrtPriceX96.toString(), tick.toString());
 };
 
 (async () => {
