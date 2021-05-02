@@ -11,14 +11,16 @@ const op = async (signer) => {
     network.config.WETH,
     signer
   );
-  /*const dai = await ethers.getContractAt(
+  const dai = await ethers.getContractAt(
     ["function approve(address,uint256) external"],
     network.config.DAI,
     signer
-  );*/
-  await weth.approve(metapool.address, ethers.utils.parseEther("100"));
-  //await dai.approve(metapool.address, ethers.utils.parseEther("100"));
-  await metapool.mint(ethers.utils.parseEther("1000"), { gasLimit: 2000000 });
+  );
+
+  // @dev change these amounts to your needs
+  await weth.approve(metapool.address, ethers.utils.parseEther("10000"));
+  await dai.approve(metapool.address, ethers.utils.parseEther("10000"));
+  await metapool.mint(ethers.utils.parseEther("1"), { gasLimit: 2000000 });
 };
 
 (async () => {

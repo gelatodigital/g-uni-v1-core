@@ -26,25 +26,27 @@ const op = async (signer) => {
     signer
   );
 
-  const dai = await ethers.getContractAt(
+  // @dev change the approvals and amount swapped to your needs
+
+  /*const dai = await ethers.getContractAt(
     ["function approve(address,uint256) external"],
     network.config.DAI,
     signer
   );
-  await dai.approve(swapper.address, ethers.utils.parseEther("200"));
+  await dai.approve(swapper.address, ethers.utils.parseEther("200"));*/
 
-  /*const weth = await ethers.getContractAt(
+  const weth = await ethers.getContractAt(
     ["function approve(address,uint256) external"],
     network.config.WETH,
     signer
   );
-  await weth.approve(swapper.address, ethers.utils.parseEther("10"));*/
+  await weth.approve(swapper.address, ethers.utils.parseEther("1"));
 
   const tx = await swapper.getSwapResult(
     uniPoolAddress,
-    true, //false,
-    ethers.utils.parseEther("200"),
-    encodePriceSqrt("1", "10000"),
+    false,
+    ethers.utils.parseEther("1"),
+    encodePriceSqrt("1", "1"),
     { gasLimit: 6000000 }
   );
   await tx.wait();

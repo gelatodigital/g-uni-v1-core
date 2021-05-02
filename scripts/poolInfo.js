@@ -14,9 +14,16 @@ const op = async (signer) => {
     signer
   );
 
-  const { sqrtPriceX96, tick } = await pool.slot0();
+  const { tick } = await pool.slot0();
 
-  console.log(sqrtPriceX96.toString(), tick.toString());
+  console.log("current tick:", tick.toString());
+
+  const r = await pool.observe([3600, 0]);
+
+  console.log(
+    "avg tick (last 1 hour):",
+    ((r[0][1] - r[0][0]) / 3600).toString()
+  );
 };
 
 (async () => {
