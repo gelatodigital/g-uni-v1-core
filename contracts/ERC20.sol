@@ -7,7 +7,7 @@ contract ERC20 {
     using LowGasSafeMath for uint256;
 
     string public constant name = "Gelato Automated Uniswap V3 ETH/DAI LP";
-    string public constant symbol = "gUNI-V3";
+    string public constant symbol = "gUNIV3";
     uint8 public constant decimals = 18;
     uint256 public totalSupply;
 

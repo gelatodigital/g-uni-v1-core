@@ -9,8 +9,8 @@ const op = async (signer) => {
   const tx = await metaPoolFactory.createPool(
     network.config.WETH,
     network.config.DAI,
-    -46560,
-    -45540,
+    -887220, // @dev can set your initial lower bound
+    887220, // @dev can set your initial upper bound
     { gasLimit: 6000000 }
   );
   await tx.wait();
