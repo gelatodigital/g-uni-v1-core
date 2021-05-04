@@ -1,5 +1,11 @@
-# gelato-uni-v3-lp
+# uni-v3-lp
 
-yarn install
+A shared fungible (ERC20) position for Uniswap V3 passive liquidity providers. This pool is auto rebalanced by gelato network to keep liquidity concentrated around a pool's current trading price.
 
-npx hardhat test
+# usage
+
+yarn
+
+yarn test
+
+
