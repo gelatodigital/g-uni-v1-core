@@ -23,12 +23,14 @@ import {TransferHelper} from "./libraries/TransferHelper.sol";
 import {LiquidityAmounts} from "./libraries/LiquidityAmounts.sol";
 import {ERC20} from "./ERC20.sol";
 import {Gelatofied} from "./Gelatofied.sol";
+import {ReentrancyGuard} from "./ReentrancyGuard.sol";
 
 contract MetaPool is
     IUniswapV3MintCallback,
     IUniswapV3SwapCallback,
     ERC20,
-    Gelatofied
+    Gelatofied,
+    ReentrancyGuard
 {
     using LowGasSafeMath for uint256;
 
@@ -55,7 +57,7 @@ contract MetaPool is
         uint24 newUniswapFee
     );
 
-    constructor() Gelatofied() {
+    constructor() Gelatofied() ReentrancyGuard() {
         IMetaPoolFactory _factory = IMetaPoolFactory(msg.sender);
         factory = _factory;
 
@@ -63,8 +65,8 @@ contract MetaPool is
             address _token0,
             address _token1,
             address _uniswapFactory,
-            int24 initialLowerTick,
-            int24 initialUpperTick,
+            int24 _initialLowerTick,
+            int24 _initialUpperTick,
             address _gelato
         ) = _factory.getDeployProps();
         token0 = _token0;
@@ -73,8 +75,8 @@ contract MetaPool is
         gelato = _gelato;
 
         // All metapools start with 0.30% fees & liquidity spread across the entire curve
-        currentLowerTick = initialLowerTick;
-        currentUpperTick = initialUpperTick;
+        currentLowerTick = _initialLowerTick;
+        currentUpperTick = _initialUpperTick;
         currentUniswapFee = DEFAULT_UNISWAP_FEE;
 
         address uniswapPool =
@@ -121,6 +123,7 @@ contract MetaPool is
 
     function burn(uint256 burnAmount)
         external
+        nonReentrant
         returns (
             uint256 amount0,
             uint256 amount1,
@@ -168,6 +171,7 @@ contract MetaPool is
         int24 newLowerTick,
         int24 newUpperTick,
         uint24 newUniswapFee,
+        uint160 swapThresholdPrice,
         uint256 feeAmount,
         address paymentToken
     ) external gelatofy(gelato, feeAmount, paymentToken) {
@@ -177,6 +181,7 @@ contract MetaPool is
                 newLowerTick,
                 newUpperTick,
                 newUniswapFee,
+                swapThresholdPrice,
                 feeAmount,
                 paymentToken
             );
@@ -185,16 +190,20 @@ contract MetaPool is
             adjustCurrentPool(
                 newLowerTick,
                 newUpperTick,
+                swapThresholdPrice,
                 feeAmount,
                 paymentToken
             );
         }
+
+        emit ParamsAdjusted(newLowerTick, newUpperTick, newUniswapFee);
     }
 
     function switchPools(
         int24 newLowerTick,
         int24 newUpperTick,
         uint24 newUniswapFee,
+        uint160 swapThresholdPrice,
         uint256 feeAmount,
         address paymentToken
     ) private {
@@ -243,12 +252,20 @@ contract MetaPool is
             newPool
         );
 
-        deposit(newPool, newLowerTick, newUpperTick, reinvest0, reinvest1);
+        deposit(
+            newPool,
+            newLowerTick,
+            newUpperTick,
+            reinvest0,
+            reinvest1,
+            swapThresholdPrice
+        );
     }
 
     function adjustCurrentPool(
         int24 newLowerTick,
         int24 newUpperTick,
+        uint160 swapThresholdPrice,
         uint256 feeAmount,
         address paymentToken
     ) private {
@@ -266,19 +283,25 @@ contract MetaPool is
                     _currentUpperTick
                 )
             );
-        (uint128 _liquidity, , , , ) = _currentPool.positions(positionID);
-        (uint256 collected0, uint256 collected1) =
-            withdraw(
-                _currentPool,
-                _currentLowerTick,
-                _currentUpperTick,
-                _liquidity,
-                address(this)
-            );
-        uint256 reinvest0 =
-            paymentToken == token0 ? collected0.sub(feeAmount) : collected0;
-        uint256 reinvest1 =
-            paymentToken == token1 ? collected1.sub(feeAmount) : collected1;
+        uint256 reinvest0;
+        uint256 reinvest1;
+        {
+            (uint128 _liquidity, , , , ) = _currentPool.positions(positionID);
+            (uint256 collected0, uint256 collected1) =
+                withdraw(
+                    _currentPool,
+                    _currentLowerTick,
+                    _currentUpperTick,
+                    _liquidity,
+                    address(this)
+                );
+            reinvest0 = paymentToken == token0
+                ? collected0.sub(feeAmount)
+                : collected0;
+            reinvest1 = paymentToken == token1
+                ? collected1.sub(feeAmount)
+                : collected1;
+        }
 
         // If ticks were adjusted
         if (
@@ -288,7 +311,14 @@ contract MetaPool is
             (currentLowerTick, currentUpperTick) = (newLowerTick, newUpperTick);
         }
 
-        deposit(_currentPool, newLowerTick, newUpperTick, reinvest0, reinvest1);
+        deposit(
+            _currentPool,
+            newLowerTick,
+            newUpperTick,
+            reinvest0,
+            reinvest1,
+            swapThresholdPrice
+        );
     }
 
     function deposit(
@@ -296,7 +326,8 @@ contract MetaPool is
         int24 lowerTick,
         int24 upperTick,
         uint256 amount0,
-        uint256 amount1
+        uint256 amount1,
+        uint160 swapThresholdPrice
     ) private {
         (uint160 sqrtRatioX96, , , , , , ) = _currentPool.slot0();
 
@@ -330,9 +361,7 @@ contract MetaPool is
                     address(this),
                     zeroForOne,
                     int256(zeroForOne ? amount0 : amount1) / 2,
-                    zeroForOne
-                        ? TickMath.MIN_SQRT_RATIO + 1
-                        : TickMath.MAX_SQRT_RATIO - 1,
+                    swapThresholdPrice,
                     abi.encode(address(this))
                 );
 

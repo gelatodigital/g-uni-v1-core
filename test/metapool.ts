@@ -244,7 +244,14 @@ describe("MetaPools", function () {
         await expect(
           metaPool
             .connect(user1)
-            .rebalance(-443610, 443610, "3000", 0, token0.address)
+            .rebalance(
+              -443610,
+              443610,
+              "3000",
+              encodePriceSqrt("10", "1"),
+              0,
+              token0.address
+            )
         ).to.be.reverted;
       });
     });
@@ -288,7 +295,14 @@ describe("MetaPools", function () {
 
             await metaPool
               .connect(gelato)
-              .rebalance(-887220, 887220, "3000", 100, token0.address);
+              .rebalance(
+                -887220,
+                887220,
+                "3000",
+                encodePriceSqrt("10000", "1"),
+                100,
+                token0.address
+              );
 
             const gelatoBalanceAfter = await token0.balanceOf(
               await gelato.getAddress()
@@ -316,7 +330,14 @@ describe("MetaPools", function () {
 
             await metaPool
               .connect(gelato)
-              .rebalance(-443580, 443580, "3000", 100, token0.address);
+              .rebalance(
+                -443580,
+                443580,
+                "3000",
+                encodePriceSqrt("10000", "1"),
+                100,
+                token0.address
+              );
 
             const gelatoBalanceAfter = await token0.balanceOf(
               await gelato.getAddress()
@@ -363,7 +384,14 @@ describe("MetaPools", function () {
 
             await metaPool
               .connect(gelato)
-              .rebalance(-443580, 443580, 500, 100, token0.address);
+              .rebalance(
+                -443580,
+                443580,
+                500,
+                encodePriceSqrt("10000", "1"),
+                100,
+                token0.address
+              );
 
             const gelatoBalanceAfter = await token0.balanceOf(
               await gelato.getAddress()
@@ -404,7 +432,14 @@ describe("MetaPools", function () {
 
             await metaPool
               .connect(gelato)
-              .rebalance(-887220, 887220, "3000", 100, token0.address);
+              .rebalance(
+                -887220,
+                887220,
+                "3000",
+                encodePriceSqrt("1", "10000"),
+                100,
+                token0.address
+              );
 
             const gelatoBalanceAfter = await token0.balanceOf(
               await gelato.getAddress()
@@ -432,7 +467,14 @@ describe("MetaPools", function () {
 
             await metaPool
               .connect(gelato)
-              .rebalance(-443580, 443580, "3000", 100, token0.address);
+              .rebalance(
+                -443580,
+                443580,
+                "3000",
+                encodePriceSqrt("1", "10000"),
+                100,
+                token0.address
+              );
 
             const gelatoBalanceAfter = await token0.balanceOf(
               await gelato.getAddress()
@@ -480,7 +522,14 @@ describe("MetaPools", function () {
 
             await metaPool
               .connect(gelato)
-              .rebalance(-443580, 443580, 500, 100, token0.address);
+              .rebalance(
+                -443580,
+                443580,
+                500,
+                encodePriceSqrt("1", "10000"),
+                100,
+                token0.address
+              );
 
             const gelatoBalanceAfter = await token0.balanceOf(
               await gelato.getAddress()
