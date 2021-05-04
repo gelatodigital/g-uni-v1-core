@@ -43,15 +43,11 @@ const config: HardhatUserConfig = {
       accounts: DEPLOYER_PK ? [DEPLOYER_PK] : [],
       chainId: 4,
       url: `https://eth-rinkeby.alchemyapi.io/v2/${ALCHEMY_ID}`,
-      ...{
-        UniswapV3Factory: "0xFeabCc62240297F1e4b238937D68e7516f0918D7",
-        Gelato: "0xD90fC89e89E3E5b75256b5aA617f887C583b29a2",
-        WETH: "0xc778417E063141139Fce010982780140Aa0cD5Ab",
-        DAI: "0x5592EC0cfb4dbc12D3aB100b257153436a1f0FEa",
-        MetaPoolFactory: "0xb4Cecd92ADc5CDb0Dd877d6D8203Ac4Eb9db242D",
-        gUNIV3: "0xb6b312AE470126D09e2E47a395c2b783dd82366d",
-        Swapper: "0x52327D6d94B77AEc83664A4e4758aEA5E34b8574",
-      },
+    },
+    ropsten: {
+      accounts: DEPLOYER_PK ? [DEPLOYER_PK] : [],
+      chainId: 3,
+      url: `https://eth-ropsten.alchemyapi.io/v2/${ALCHEMY_ID}`,
     },
   },
 

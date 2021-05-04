@@ -1,9 +1,13 @@
-const { ethers, network } = require("hardhat");
+import { ethers, network } from "hardhat";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signer-with-address";
+import { getAddresses } from "../hardhat/addresses";
 
-const op = async (signer) => {
+const addresses = getAddresses(network.name);
+
+const op = async (signer: SignerWithAddress) => {
   const metapool = await ethers.getContractAt(
     "MetaPool",
-    network.config.gUNIV3,
+    addresses.gUNIV3,
     signer
   );
   const poolAddr = await metapool.currentPool();
@@ -22,7 +26,7 @@ const op = async (signer) => {
     tickHigh.toString(),
     "3000",
     ethers.utils.parseEther("1"),
-    network.config.DAI,
+    addresses.DAI,
     { gasLimit: 6000000 }
   );
 };
