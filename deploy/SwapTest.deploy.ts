@@ -1,4 +1,8 @@
-module.exports = async (hre) => {
+import { deployments, getNamedAccounts } from "hardhat";
+import { HardhatRuntimeEnvironment } from "hardhat/types";
+import { DeployFunction } from "hardhat-deploy/types";
+
+const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   if (
     hre.network.name === "mainnet" ||
     hre.network.name === "rinkeby" ||
@@ -10,9 +14,8 @@ module.exports = async (hre) => {
     await new Promise((r) => setTimeout(r, 20000));
   }
 
-  const { deployments } = hre;
   const { deploy } = deployments;
-  const { deployer } = await hre.getNamedAccounts();
+  const { deployer } = await getNamedAccounts();
 
   await deploy("SwapTest", {
     from: deployer,
@@ -20,13 +23,14 @@ module.exports = async (hre) => {
   });
 };
 
-module.exports.skip = async (hre) => {
-  const skip =
+export default func;
+
+func.skip = async (hre: HardhatRuntimeEnvironment) => {
+  const shouldSkip =
     hre.network.name === "mainnet" ||
     hre.network.name === "rinkeby" ||
     hre.network.name === "ropsten";
-
-  return skip ? true : false;
+  return shouldSkip ? true : false;
 };
 
-module.exports.tags = ["SwapTest"];
+func.tags = ["SwapTest"];

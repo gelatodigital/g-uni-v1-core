@@ -1,3 +1,5 @@
 cache
 dist
 typechain
+scripts
+hardhat/*

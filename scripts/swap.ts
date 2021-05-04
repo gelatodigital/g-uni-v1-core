@@ -1,28 +1,32 @@
-const { ethers, network } = require("hardhat");
-const bn = require("bignumber.js");
+import { ethers, network } from "hardhat";
+import { BigNumber } from "bignumber.js";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signer-with-address";
+import { getAddresses } from "../hardhat/addresses";
 
-bn.config({ EXPONENTIAL_AT: 999999, DECIMAL_PLACES: 40 });
+const addresses = getAddresses(network.name);
+
+BigNumber.config({ EXPONENTIAL_AT: 999999, DECIMAL_PLACES: 40 });
 
 // returns the sqrt price as a 64x96
-const encodePriceSqrt = (reserve1, reserve0) => {
-  return new bn(reserve1.toString())
+const encodePriceSqrt = (reserve1: string, reserve0: string) => {
+  return new BigNumber(reserve1.toString())
     .div(reserve0.toString())
     .sqrt()
-    .multipliedBy(new bn(2).pow(96))
+    .multipliedBy(new BigNumber(2).pow(96))
     .integerValue(3)
     .toString();
 };
 
-const op = async (signer) => {
+const op = async (signer: SignerWithAddress) => {
   const metaPool = await ethers.getContractAt(
     "MetaPool",
-    network.config.gUNIV3,
+    addresses.gUNIV3,
     signer
   );
   const uniPoolAddress = await metaPool.currentPool();
   const swapper = await ethers.getContractAt(
     "SwapTest",
-    network.config.Swapper,
+    addresses.Swapper,
     signer
   );
 
@@ -37,16 +41,16 @@ const op = async (signer) => {
 
   const weth = await ethers.getContractAt(
     ["function approve(address,uint256) external"],
-    network.config.WETH,
+    addresses.WETH,
     signer
   );
   await weth.approve(swapper.address, ethers.utils.parseEther("1"));
 
   const tx = await swapper.getSwapResult(
     uniPoolAddress,
-    false,
-    ethers.utils.parseEther("1"),
-    encodePriceSqrt("1", "1"),
+    true,
+    ethers.utils.parseEther("0.1"),
+    encodePriceSqrt("10000", "1"),
     { gasLimit: 6000000 }
   );
   await tx.wait();
@@ -57,9 +61,9 @@ const op = async (signer) => {
     signer
   );
 
-  const { sqrtPriceX96, tick } = await pool.slot0();
+  const { tick } = await pool.slot0();
 
-  console.log(sqrtPriceX96.toString(), tick.toString());
+  console.log("current tick:", tick.toString());
 };
 
 (async () => {
