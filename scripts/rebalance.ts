@@ -1,8 +1,21 @@
 import { ethers, network } from "hardhat";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signer-with-address";
 import { getAddresses } from "../hardhat/addresses";
+import { BigNumber } from "bignumber.js";
 
 const addresses = getAddresses(network.name);
+
+BigNumber.config({ EXPONENTIAL_AT: 999999, DECIMAL_PLACES: 40 });
+
+// returns the sqrt price as a 64x96
+const encodePriceSqrt = (reserve1: string, reserve0: string) => {
+  return new BigNumber(reserve1.toString())
+    .div(reserve0.toString())
+    .sqrt()
+    .multipliedBy(new BigNumber(2).pow(96))
+    .integerValue(3)
+    .toString();
+};
 
 const op = async (signer: SignerWithAddress) => {
   const metapool = await ethers.getContractAt(
@@ -25,8 +38,9 @@ const op = async (signer: SignerWithAddress) => {
     tickLow.toString(),
     tickHigh.toString(),
     "3000",
-    ethers.utils.parseEther("1"),
-    addresses.DAI,
+    encodePriceSqrt("1000000", "1"), // if swapping ETH for DAI
+    ethers.utils.parseEther("0.001"),
+    addresses.WETH,
     { gasLimit: 6000000 }
   );
 };

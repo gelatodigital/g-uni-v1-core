@@ -24,7 +24,7 @@ const op = async (signer: SignerWithAddress) => {
   // @dev change these amounts to your needs
   await weth.approve(metapool.address, ethers.utils.parseEther("10000"));
   await dai.approve(metapool.address, ethers.utils.parseEther("10000"));
-  await metapool.mint(ethers.utils.parseEther("90"), { gasLimit: 2000000 });
+  await metapool.mint(ethers.utils.parseEther("10"), { gasLimit: 2000000 });
 };
 
 (async () => {
