@@ -1,4 +1,5 @@
-interface addresses {
+/* eslint-disable @typescript-eslint/naming-convention */
+interface Addresses {
   UniswapV3Factory: string;
   Gelato: string;
   WETH: string;
@@ -8,18 +9,9 @@ interface addresses {
   Swapper: string;
 }
 
-export const getAddresses = (network: string) => {
-  let addrs: addresses = {
-    UniswapV3Factory: "",
-    Gelato: "",
-    WETH: "",
-    DAI: "",
-    MetaPoolFactory: "",
-    gUNIV3: "",
-    Swapper: "",
-  };
+export const getAddresses = (network: string): Addresses => {
   if (network == "rinkeby") {
-    addrs = {
+    return {
       UniswapV3Factory: "0xFeabCc62240297F1e4b238937D68e7516f0918D7",
       Gelato: "0xD90fC89e89E3E5b75256b5aA617f887C583b29a2",
       WETH: "0xc778417E063141139Fce010982780140Aa0cD5Ab",
@@ -29,7 +21,7 @@ export const getAddresses = (network: string) => {
       Swapper: "0x52327D6d94B77AEc83664A4e4758aEA5E34b8574",
     };
   } else if (network == "ropsten") {
-    addrs = {
+    return {
       UniswapV3Factory: "0x273Edaa13C845F605b5886Dd66C89AB497A6B17b",
       Gelato: "0xD90fC89e89E3E5b75256b5aA617f887C583b29a2",
       WETH: "0xc778417E063141139Fce010982780140Aa0cD5Ab",
@@ -38,7 +30,7 @@ export const getAddresses = (network: string) => {
       gUNIV3: "0xd26133af3a606480916BEbEA9fFE94Cbeb4D05c2",
       Swapper: "0x2E185412E2aF7DC9Ed28359Ea3193EBAd7E929C6",
     };
+  } else {
+    throw new Error(`No addresses for Network: ${network}`);
   }
-
-  return addrs;
 };
