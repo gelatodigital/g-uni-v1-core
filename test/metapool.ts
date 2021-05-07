@@ -40,11 +40,12 @@ describe("MetaPools", function () {
   const nonExistantToken = "0x1111111111111111111111111111111111111111";
   let user0: SignerWithAddress;
   let user1: SignerWithAddress;
+  let user2: SignerWithAddress;
   let swapTest: SwapTest;
   let gelato: SignerWithAddress;
 
   before(async function () {
-    [user0, user1, gelato] = await ethers.getSigners();
+    [user0, user1, user2, gelato] = await ethers.getSigners();
 
     const swapTestFactory = await ethers.getContractFactory("SwapTest");
     swapTest = (await swapTestFactory.deploy()) as SwapTest;
@@ -357,6 +358,72 @@ describe("MetaPools", function () {
               position(metaPool.address, -443580, 443580)
             );
             expect(liquidityNew).to.be.gt(liquidityOld);
+          });
+
+          it("mint/burn without trading should result in same amounts", async function () {
+            /*const [liquidityOld] = await uniswapPool.positions(
+              position(metaPool.address, -887220, 887220)
+            );*/
+            await token0.transfer(
+              await user2.getAddress(),
+              ethers.utils.parseEther("1000")
+            );
+            await token1.transfer(
+              await user2.getAddress(),
+              ethers.utils.parseEther("1000")
+            );
+            await token0.transfer(
+              await user1.getAddress(),
+              ethers.utils.parseEther("1000")
+            );
+            await token1.transfer(
+              await user1.getAddress(),
+              ethers.utils.parseEther("1000")
+            );
+            await token0
+              .connect(user1)
+              .approve(metaPool.address, ethers.constants.MaxUint256);
+            await token1
+              .connect(user1)
+              .approve(metaPool.address, ethers.constants.MaxUint256);
+            await metaPool.connect(user1).mint(ethers.utils.parseEther("9"));
+            await token0
+              .connect(user2)
+              .approve(metaPool.address, ethers.constants.MaxUint256);
+            await token1
+              .connect(user2)
+              .approve(metaPool.address, ethers.constants.MaxUint256);
+            await metaPool.connect(user2).mint(ethers.utils.parseEther("10"));
+
+            const balanceAfterMint0 = await token0.balanceOf(
+              await user2.getAddress()
+            );
+            const balanceAfterMint1 = await token0.balanceOf(
+              await user2.getAddress()
+            );
+
+            expect(
+              ethers.utils.parseEther("1000").sub(balanceAfterMint0.toString())
+            ).to.be.gt(ethers.BigNumber.from("1"));
+            expect(
+              ethers.utils.parseEther("1000").sub(balanceAfterMint1.toString())
+            ).to.be.gt(ethers.BigNumber.from("1"));
+
+            await metaPool
+              .connect(user2)
+              .burn(await metaPool.balanceOf(await user2.getAddress()));
+            const balanceAfterBurn0 = await token0.balanceOf(
+              await user2.getAddress()
+            );
+            const balanceAfterBurn1 = await token0.balanceOf(
+              await user2.getAddress()
+            );
+            expect(
+              ethers.utils.parseEther("1000").sub(balanceAfterBurn1.toString())
+            ).to.be.lte(ethers.BigNumber.from("1"));
+            expect(
+              ethers.utils.parseEther("1000").sub(balanceAfterBurn0.toString())
+            ).to.be.lte(ethers.BigNumber.from("1"));
           });
 
           it("should change the fee & ticks and rebalance", async function () {

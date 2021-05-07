@@ -57,7 +57,7 @@ contract MetaPool is
         uint24 newUniswapFee
     );
 
-    constructor() Gelatofied() ReentrancyGuard() {
+    constructor() {
         IMetaPoolFactory _factory = IMetaPoolFactory(msg.sender);
         factory = _factory;
 
@@ -147,7 +147,7 @@ contract MetaPool is
 
         _burn(msg.sender, burnAmount);
 
-        uint256 _liquidityBurned = burnAmount.mul(_totalSupply) / _liquidity;
+        uint256 _liquidityBurned = burnAmount.mul(_liquidity) / _totalSupply;
         require(_liquidityBurned < type(uint128).max);
         liquidityBurned = uint128(_liquidityBurned);
 

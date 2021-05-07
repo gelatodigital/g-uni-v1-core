@@ -41,7 +41,7 @@
     "ethers": "5.1.4",
     "hardhat": "2.2.1",
     "hardhat-deploy": "0.7.5",
-    "hardhat-deploy-ethers": "0.3.0-beta.7",
+    "hardhat-deploy-ethers": "^0.3.0-beta.7",
     "husky": "6.0.0",
     "lint-staged": "10.5.4",
     "node-fetch": "2.6.1",
