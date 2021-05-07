@@ -1,7 +1,7 @@
 import { ethers, network } from "hardhat";
 import { BigNumber } from "bignumber.js";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signer-with-address";
-import { getAddresses } from "../hardhat/addresses";
+import { getAddresses } from "../src/addresses";
 
 const addresses = getAddresses(network.name);
 
@@ -49,7 +49,7 @@ const op = async (signer: SignerWithAddress) => {
   const tx = await swapper.getSwapResult(
     uniPoolAddress,
     false,
-    ethers.utils.parseEther("0.5"),
+    ethers.utils.parseEther("0.3"),
     encodePriceSqrt("10000", "1"),
     { gasLimit: 6000000 }
   );

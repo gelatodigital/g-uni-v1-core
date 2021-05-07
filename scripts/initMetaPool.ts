@@ -1,6 +1,6 @@
 import { ethers, network } from "hardhat";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signer-with-address";
-import { getAddresses } from "../hardhat/addresses";
+import { getAddresses } from "../src/addresses";
 
 const addresses = getAddresses(network.name);
 
