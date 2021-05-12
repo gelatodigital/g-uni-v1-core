@@ -11,11 +11,11 @@ const op = async (signer: SignerWithAddress) => {
     signer
   );
   await metapool.updateMetaParams(
-    ethers.utils.parseEther("25"),
+    ethers.utils.parseEther("25"), // this is a param we are changing: lower supply cap
     "600",
     "120",
     "7000",
-    true,
+    true, // this is a param we are changing: disallow switch pools
     "300",
     "5"
   );

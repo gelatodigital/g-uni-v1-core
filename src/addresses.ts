@@ -33,6 +33,17 @@ export const getAddresses = (network: string): Addresses => {
       Swapper: "0x2E185412E2aF7DC9Ed28359Ea3193EBAd7E929C6",
       GelatoAdmin: "0xD90fC89e89E3E5b75256b5aA617f887C583b29a2",
     };
+  } else if (network == "mainnet") {
+    return {
+      UniswapV3Factory: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+      Gelato: "0x3CACa7b48D0573D793d3b0279b5F0029180E83b6",
+      WETH: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+      DAI: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+      MetaPoolFactory: "",
+      gUNIV3: "",
+      Swapper: "",
+      GelatoAdmin: "0x163407FDA1a93941358c1bfda39a868599553b6D",
+    };
   } else {
     throw new Error(`No addresses for Network: ${network}`);
   }
