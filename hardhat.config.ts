@@ -51,7 +51,16 @@ const config: HardhatUserConfig = {
     },
   },
 
-  solidity: "0.7.3",
+  solidity: {
+    compilers: [
+      {
+        version: "0.7.3",
+        settings: {
+          optimizer: { enabled: true },
+        },
+      },
+    ],
+  },
 
   typechain: {
     outDir: "typechain",

@@ -15,13 +15,19 @@ contract MetaPoolFactory is IMetaPoolFactory {
 
     address public immutable uniswapFactory;
     address public immutable gelato;
+    address public immutable owner;
 
     bytes32 public constant POOL_BYTECODE_HASH =
         keccak256(type(MetaPool).creationCode);
 
-    constructor(address _uniswapFactory, address _gelato) {
+    constructor(
+        address _uniswapFactory,
+        address _gelato,
+        address _owner
+    ) {
         uniswapFactory = _uniswapFactory;
         gelato = _gelato;
+        owner = _owner;
     }
 
     function calculatePoolAddress(address tokenA, address tokenB)
@@ -84,6 +90,7 @@ contract MetaPoolFactory is IMetaPoolFactory {
             address,
             int24,
             int24,
+            address,
             address
         )
     {
@@ -93,7 +100,8 @@ contract MetaPoolFactory is IMetaPoolFactory {
             uniswapFactory,
             _initialLowerTick,
             _initialUpperTick,
-            gelato
+            gelato,
+            owner
         );
     }
 }

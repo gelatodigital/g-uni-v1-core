@@ -20,7 +20,7 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   const addresses = getAddresses(hre.network.name);
   await deploy("MetaPoolFactory", {
     from: deployer,
-    args: [addresses.UniswapV3Factory, addresses.Gelato],
+    args: [addresses.UniswapV3Factory, addresses.Gelato, addresses.GelatoAdmin],
   });
 };
 

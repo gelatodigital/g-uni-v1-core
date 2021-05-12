@@ -49,7 +49,7 @@ const op = async (signer: SignerWithAddress) => {
   const tx = await swapper.getSwapResult(
     uniPoolAddress,
     false,
-    ethers.utils.parseEther("0.3"),
+    ethers.utils.parseEther("0.6"),
     encodePriceSqrt("10000", "1"),
     { gasLimit: 6000000 }
   );

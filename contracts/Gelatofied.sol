@@ -6,8 +6,6 @@ import {TransferHelper} from "./libraries/TransferHelper.sol";
 abstract contract Gelatofied {
     address public constant ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
-    constructor() {}
-
     modifier gelatofy(
         address _gelato,
         uint256 _amount,

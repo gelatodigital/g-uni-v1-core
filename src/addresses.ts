@@ -7,6 +7,7 @@ interface Addresses {
   MetaPoolFactory: string;
   gUNIV3: string;
   Swapper: string;
+  GelatoAdmin: string;
 }
 
 export const getAddresses = (network: string): Addresses => {
@@ -19,6 +20,7 @@ export const getAddresses = (network: string): Addresses => {
       MetaPoolFactory: "0xb4Cecd92ADc5CDb0Dd877d6D8203Ac4Eb9db242D",
       gUNIV3: "0xb6b312AE470126D09e2E47a395c2b783dd82366d",
       Swapper: "0x52327D6d94B77AEc83664A4e4758aEA5E34b8574",
+      GelatoAdmin: "0x88215a2794ddC031439C72922EC8983bDE831c78",
     };
   } else if (network == "ropsten") {
     return {
@@ -26,9 +28,10 @@ export const getAddresses = (network: string): Addresses => {
       Gelato: "0xD90fC89e89E3E5b75256b5aA617f887C583b29a2",
       WETH: "0xc778417E063141139Fce010982780140Aa0cD5Ab",
       DAI: "0xaD6D458402F60fD3Bd25163575031ACDce07538D",
-      MetaPoolFactory: "0x1c369936cb74193beFE29bF57A426E8C38bc5898",
-      gUNIV3: "0x29644532D6C36fCFCAD43F50fe55Fd99f178241c",
+      MetaPoolFactory: "0x5Fe58B8b7a41deb57ae60c72D6bBE8D8DbDc0B9d",
+      gUNIV3: "0x892DE4865e2EBCB07411Aa0c7F0f39D1484F9476",
       Swapper: "0x2E185412E2aF7DC9Ed28359Ea3193EBAd7E929C6",
+      GelatoAdmin: "0xD90fC89e89E3E5b75256b5aA617f887C583b29a2",
     };
   } else {
     throw new Error(`No addresses for Network: ${network}`);

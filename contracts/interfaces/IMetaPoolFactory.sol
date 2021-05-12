@@ -24,6 +24,7 @@ interface IMetaPoolFactory {
             address,
             int24,
             int24,
+            address,
             address
         );
 }
