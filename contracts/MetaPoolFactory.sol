@@ -13,6 +13,8 @@ contract MetaPoolFactory is IMetaPoolFactory {
     int24 private _initialLowerTick;
     int24 private _initialUpperTick;
 
+    string private _name;
+
     address public immutable uniswapFactory;
     address public immutable gelato;
     address public immutable owner;
@@ -53,6 +55,7 @@ contract MetaPoolFactory is IMetaPoolFactory {
     }
 
     function createPool(
+        string calldata name,
         address tokenA,
         address tokenB,
         int24 initialLowerTick,
@@ -67,6 +70,7 @@ contract MetaPoolFactory is IMetaPoolFactory {
         _token1 = token1;
         _initialLowerTick = initialLowerTick;
         _initialUpperTick = initialUpperTick;
+        _name = name;
 
         pool = address(
             new MetaPool{salt: keccak256(abi.encodePacked(token0, token1))}()
@@ -76,6 +80,7 @@ contract MetaPoolFactory is IMetaPoolFactory {
         _token1 = address(0);
         _initialLowerTick = 0;
         _initialUpperTick = 0;
+        _name = "";
 
         emit PoolCreated(token0, token1, pool);
     }
@@ -91,7 +96,8 @@ contract MetaPoolFactory is IMetaPoolFactory {
             int24,
             int24,
             address,
-            address
+            address,
+            string memory
         )
     {
         return (
@@ -101,7 +107,8 @@ contract MetaPoolFactory is IMetaPoolFactory {
             _initialLowerTick,
             _initialUpperTick,
             gelato,
-            owner
+            owner,
+            _name
         );
     }
 }

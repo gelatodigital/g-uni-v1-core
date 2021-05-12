@@ -6,7 +6,7 @@ import "@uniswap/v3-core/contracts/libraries/LowGasSafeMath.sol";
 contract ERC20 {
     using LowGasSafeMath for uint256;
 
-    string public constant name = "Gelato Automated Uniswap V3 LP";
+    string public name;
     string public constant symbol = "gUNIV3";
     uint8 public constant decimals = 18;
     uint256 public totalSupply;
@@ -44,6 +44,10 @@ contract ERC20 {
                 address(this)
             )
         );
+    }
+
+    function _setName(string memory _name) internal {
+        name = _name;
     }
 
     function _mint(address to, uint256 value) internal {

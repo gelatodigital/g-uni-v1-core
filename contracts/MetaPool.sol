@@ -90,13 +90,15 @@ contract MetaPool is
             int24 _initialLowerTick,
             int24 _initialUpperTick,
             address _gelato,
-            address _owner
+            address _owner,
+            string memory _name
         ) = _factory.getDeployProps();
         token0 = _token0;
         token1 = _token1;
         uniswapFactory = IUniswapV3Factory(_uniswapFactory);
         gelato = _gelato;
         transferOwnership(_owner);
+        _setName(_name);
 
         // All metapools start with 0.30% fees & liquidity spread across the entire curve
         currentLowerTick = _initialLowerTick;

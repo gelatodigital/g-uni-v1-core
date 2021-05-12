@@ -110,6 +110,7 @@ describe("MetaPools", function () {
   describe("MetaPoolFactory", async function () {
     it("Should create a metapool for an existing Uniswap V3 pool", async function () {
       const tx = await metaPoolFactory.createPool(
+        "abc",
         token0.address,
         token1.address,
         -887220,
@@ -173,6 +174,7 @@ describe("MetaPools", function () {
     it("Should fail to create a metapool if there is no Uniswap 0.3% pool", async function () {
       await expect(
         metaPoolFactory.createPool(
+          "abc",
           token0.address,
           nonExistantToken,
           -887220,
@@ -183,6 +185,7 @@ describe("MetaPools", function () {
 
     it("Should fail to create the same pool twice", async function () {
       await metaPoolFactory.createPool(
+        "abc",
         token0.address,
         token1.address,
         -887220,
@@ -190,6 +193,7 @@ describe("MetaPools", function () {
       );
       await expect(
         metaPoolFactory.createPool(
+          "abc",
           token0.address,
           token1.address,
           -887220,
@@ -204,6 +208,7 @@ describe("MetaPools", function () {
 
     beforeEach(async function () {
       await metaPoolFactory.createPool(
+        "abc",
         token0.address,
         token1.address,
         -887220,
@@ -374,6 +379,19 @@ describe("MetaPools", function () {
               const executionTime = block.timestamp + 300;
               await network.provider.send("evm_mine", [executionTime]);
             }
+
+            await expect(
+              metaPool
+                .connect(gelato)
+                .rebalance(
+                  -887220,
+                  887220,
+                  "3000",
+                  encodePriceSqrt("100000", "1"),
+                  100,
+                  token0.address
+                )
+            ).to.be.reverted;
 
             await metaPool
               .connect(gelato)
@@ -722,7 +740,7 @@ describe("MetaPools", function () {
                   "3000",
                   encodePriceSqrt("1", "10000"),
                   100,
-                  token0.address
+                  token1.address
                 )
             ).to.be.reverted;
 
