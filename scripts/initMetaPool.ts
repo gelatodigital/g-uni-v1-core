@@ -11,12 +11,12 @@ const op = async (signer: SignerWithAddress) => {
     signer
   );
   const tx = await metaPoolFactory.createPool(
-    "Gelato Uniswap V3 ETH/DAI LP", //@dev token name
+    "Gelato Uniswap V3 WETH/DAI LP", //@dev token name
     addresses.WETH,
     addresses.DAI,
-    -47040, // @dev can set your initial lower bound
-    -45000, // @dev can set your initial upper bound
-    { gasLimit: 6000000 }
+    -82500, // @dev can set your initial lower bound
+    -81480, // @dev can set your initial upper bound
+    { gasLimit: 4200000, gasPrice: ethers.BigNumber.from("100000000000") }
   );
   await tx.wait();
 };

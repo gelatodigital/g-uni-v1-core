@@ -1,4 +1,4 @@
-import { deployments, getNamedAccounts } from "hardhat";
+import { deployments, ethers, getNamedAccounts } from "hardhat";
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 import { DeployFunction } from "hardhat-deploy/types";
 import { getAddresses } from "../src/addresses";
@@ -21,6 +21,7 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   await deploy("MetaPoolFactory", {
     from: deployer,
     args: [addresses.UniswapV3Factory, addresses.Gelato, addresses.GelatoAdmin],
+    gasPrice: ethers.BigNumber.from("120000000000"),
   });
 };
 

@@ -55,7 +55,7 @@ contract MetaPool is
 
     uint256 public lastRebalanceTimestamp;
 
-    uint256 public supplyCap = 10000 * 10**18; // default: 10,000 gUNIV3
+    uint256 public supplyCap = 15000 * 10**18; // default: 15,000 gUNIV3
     uint256 public heartbeat = 86400; // default: one day
     int24 public minTickDeviation = 120; // default: ~1% price difference up and down
     int24 public maxTickDeviation = 7000; // default: ~100% price difference up and down
