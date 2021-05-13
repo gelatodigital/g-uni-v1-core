@@ -268,8 +268,7 @@ contract MetaPool is
                     _currentPool,
                     _currentLowerTick,
                     _currentUpperTick,
-                    _liquidity,
-                    address(this)
+                    _liquidity
                 );
             reinvest0 = paymentToken == token0
                 ? collected0.sub(feeAmount)
@@ -346,8 +345,7 @@ contract MetaPool is
                     _currentPool,
                     _currentLowerTick,
                     _currentUpperTick,
-                    _liquidity,
-                    address(this)
+                    _liquidity
                 );
             reinvest0 = paymentToken == token0
                 ? collected0.sub(feeAmount)
@@ -420,6 +418,7 @@ contract MetaPool is
                 baseLiquidity,
                 abi.encode(address(this))
             );
+
         amount0 -= amountDeposited0;
         amount1 -= amountDeposited1;
 
@@ -477,7 +476,7 @@ contract MetaPool is
         uint160 maxSlippage = (avgSqrtRatioX96 * maxSlippagePercentage) / 100;
         require(
             avgSqrtRatioX96 + maxSlippage >= swapThresholdPrice &&
-                swapThresholdPrice >= avgSqrtRatioX96 - maxSlippage,
+                avgSqrtRatioX96 - maxSlippage <= swapThresholdPrice,
             "slippage price is out of acceptable price range"
         );
     }
@@ -486,30 +485,15 @@ contract MetaPool is
         IUniswapV3Pool _currentPool,
         int24 lowerTick,
         int24 upperTick,
-        uint128 liquidity,
-        address recipient
+        uint128 liquidity
     ) private returns (uint256 collected0, uint256 collected1) {
-        // We can request MAX_INT, and Uniswap will just give whatever we're owed
-        uint128 requestAmount0 = type(uint128).max;
-        uint128 requestAmount1 = type(uint128).max;
-
-        (uint256 _owed0, uint256 _owed1) =
-            _currentPool.burn(lowerTick, upperTick, liquidity);
-
-        // If we're withdrawing for a specific user, then we only want to withdraw what they're owed
-        if (recipient != address(this)) {
-            // TODO: can we trust Uniswap and safely cast here?
-            requestAmount0 = uint128(_owed0);
-            requestAmount1 = uint128(_owed1);
-        }
-
-        // Collect all owed
+        _currentPool.burn(lowerTick, upperTick, liquidity);
         (collected0, collected1) = _currentPool.collect(
-            recipient,
+            address(this),
             lowerTick,
             upperTick,
-            requestAmount0,
-            requestAmount1
+            type(uint128).max,
+            type(uint128).max
         );
     }
 
