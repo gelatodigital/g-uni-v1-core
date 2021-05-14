@@ -1,6 +1,6 @@
 import { ethers, network } from "hardhat";
 import { BigNumber } from "bignumber.js";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signer-with-address";
+//import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signer-with-address";
 import { getAddresses } from "../src/addresses";
 
 const addresses = getAddresses(network.name);
@@ -23,14 +23,32 @@ const op = async () => {
     "0xC2e9F25Be6257c210d7Adf0D4Cd6E3E881ba25f8"
   );
 
-  const { tick, sqrtPriceX96 } = await pool.slot0();
+  const {
+    tick,
+    sqrtPriceX96,
+    observationCardinalityNext,
+    observationCardinality,
+  } = await pool.slot0();
   const liquidity = await pool.liquidity();
   const t = await pool.token0();
-
   console.log("current tick:", tick.toString());
   console.log("current sqrtPrice:", sqrtPriceX96.toString());
   console.log("current liquidity:", liquidity.toString());
   console.log("token0:", t);
+  console.log(
+    "cardinality:",
+    observationCardinality.toString(),
+    observationCardinalityNext.toString()
+  );
+
+  const { tickCumulatives } = await pool.observe([300, 0]);
+
+  console.log(
+    tickCumulatives[1]
+      .sub(tickCumulatives[0])
+      .div(ethers.BigNumber.from("300"))
+      .toString()
+  );
 };
 
 (async () => {
