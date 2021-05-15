@@ -35,7 +35,11 @@ const config: HardhatUserConfig = {
 
   networks: {
     mainnet: {
-      accounts: DEPLOYER_PK_MAINNET ? [DEPLOYER_PK_MAINNET] : [],
+      accounts: DEPLOYER_PK_MAINNET
+        ? [DEPLOYER_PK_MAINNET]
+        : DEPLOYER_PK
+        ? [DEPLOYER_PK]
+        : [],
       chainId: 1,
       url: `https://eth-mainnet.alchemyapi.io/v2/${ALCHEMY_ID}`,
     },
@@ -51,7 +55,16 @@ const config: HardhatUserConfig = {
     },
   },
 
-  solidity: "0.7.3",
+  solidity: {
+    compilers: [
+      {
+        version: "0.7.3",
+        settings: {
+          optimizer: { enabled: true },
+        },
+      },
+    ],
+  },
 
   typechain: {
     outDir: "typechain",

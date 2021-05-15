@@ -10,7 +10,15 @@ const op = async (signer: SignerWithAddress) => {
     addresses.gUNIV3,
     signer
   );
-  await metapool.burn(ethers.utils.parseEther("10"), { gasLimit: 6000000 });
+  await metapool.updateMetaParams(
+    ethers.utils.parseEther("25"), // this is a param we are changing: lower supply cap
+    "600",
+    "120",
+    "7000",
+    true, // this is a param we are changing: disallow switch pools
+    "300",
+    "5"
+  );
 };
 
 (async () => {

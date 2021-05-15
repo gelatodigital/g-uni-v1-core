@@ -9,6 +9,7 @@ interface IMetaPoolFactory {
     );
 
     function createPool(
+        string calldata name,
         address tokenA,
         address tokenB,
         int24 initialLowerTick,
@@ -24,6 +25,8 @@ interface IMetaPoolFactory {
             address,
             int24,
             int24,
-            address
+            address,
+            address,
+            string memory
         );
 }

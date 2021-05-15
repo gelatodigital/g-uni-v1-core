@@ -24,13 +24,15 @@ import {LiquidityAmounts} from "./libraries/LiquidityAmounts.sol";
 import {ERC20} from "./ERC20.sol";
 import {Gelatofied} from "./Gelatofied.sol";
 import {ReentrancyGuard} from "./ReentrancyGuard.sol";
+import {Ownable} from "./Ownable.sol";
 
 contract MetaPool is
     IUniswapV3MintCallback,
     IUniswapV3SwapCallback,
     ERC20,
     Gelatofied,
-    ReentrancyGuard
+    ReentrancyGuard,
+    Ownable
 {
     using LowGasSafeMath for uint256;
 
@@ -51,13 +53,33 @@ contract MetaPool is
     int24 private constant MIN_TICK = -887220;
     int24 private constant MAX_TICK = 887220;
 
+    uint256 public lastRebalanceTimestamp;
+
+    uint256 public supplyCap = 15000 * 10**18; // default: 15,000 gUNIV3
+    uint256 public heartbeat = 86400; // default: one day
+    int24 public minTickDeviation = 120; // default: ~1% price difference up and down
+    int24 public maxTickDeviation = 7000; // default: ~100% price difference up and down
+    bool public disablePoolSwitch; // default: false (can switch pools)
+    uint32 public observationSeconds = 300; // default: last five minutes;
+    uint160 public maxSlippagePercentage = 5; //default: 5% slippage
+
     event ParamsAdjusted(
         int24 newLowerTick,
         int24 newUpperTick,
         uint24 newUniswapFee
     );
 
-    constructor() Gelatofied() ReentrancyGuard() {
+    event MetaParamsAdjusted(
+        uint256 supplyCap,
+        uint256 heartbeat,
+        int24 minTickDeviation,
+        int24 maxTickDeviation,
+        bool disablePoolSwitch,
+        uint32 observationSeconds,
+        uint160 maxSlippagePercentage
+    );
+
+    constructor() {
         IMetaPoolFactory _factory = IMetaPoolFactory(msg.sender);
         factory = _factory;
 
@@ -67,12 +89,16 @@ contract MetaPool is
             address _uniswapFactory,
             int24 _initialLowerTick,
             int24 _initialUpperTick,
-            address _gelato
+            address _gelato,
+            address _owner,
+            string memory _name
         ) = _factory.getDeployProps();
         token0 = _token0;
         token1 = _token1;
         uniswapFactory = IUniswapV3Factory(_uniswapFactory);
         gelato = _gelato;
+        transferOwnership(_owner);
+        _setName(_name);
 
         // All metapools start with 0.30% fees & liquidity spread across the entire curve
         currentLowerTick = _initialLowerTick;
@@ -90,19 +116,23 @@ contract MetaPool is
     }
 
     function mint(uint128 newLiquidity) external returns (uint256 mintAmount) {
+        require(newLiquidity > 0);
         (int24 _currentLowerTick, int24 _currentUpperTick) =
             (currentLowerTick, currentUpperTick);
         IUniswapV3Pool _currentPool = currentPool;
 
-        bytes32 positionID =
-            keccak256(
-                abi.encodePacked(
-                    address(this),
-                    _currentLowerTick,
-                    _currentUpperTick
-                )
-            );
-        (uint128 _liquidity, , , , ) = _currentPool.positions(positionID);
+        (uint128 _liquidity, , , , ) = _currentPool.positions(_getPositionID());
+
+        uint256 _totalSupply = totalSupply;
+        if (_totalSupply == 0) {
+            mintAmount = newLiquidity;
+        } else {
+            mintAmount = uint256(newLiquidity).mul(_totalSupply) / _liquidity;
+        }
+        require(
+            supplyCap >= _totalSupply.add(mintAmount),
+            "cannot mint more than supplyCap"
+        );
 
         _currentPool.mint(
             address(this),
@@ -112,12 +142,6 @@ contract MetaPool is
             abi.encode(msg.sender)
         );
 
-        uint256 _totalSupply = totalSupply;
-        if (_totalSupply == 0) {
-            mintAmount = newLiquidity;
-        } else {
-            mintAmount = uint256(newLiquidity).mul(totalSupply) / _liquidity;
-        }
         _mint(msg.sender, mintAmount);
     }
 
@@ -130,24 +154,17 @@ contract MetaPool is
             uint128 liquidityBurned
         )
     {
+        require(burnAmount > 0);
         (int24 _currentLowerTick, int24 _currentUpperTick) =
             (currentLowerTick, currentUpperTick);
         IUniswapV3Pool _currentPool = currentPool;
         uint256 _totalSupply = totalSupply;
 
-        bytes32 positionID =
-            keccak256(
-                abi.encodePacked(
-                    address(this),
-                    _currentLowerTick,
-                    _currentUpperTick
-                )
-            );
-        (uint128 _liquidity, , , , ) = _currentPool.positions(positionID);
+        (uint128 _liquidity, , , , ) = _currentPool.positions(_getPositionID());
 
         _burn(msg.sender, burnAmount);
 
-        uint256 _liquidityBurned = burnAmount.mul(_totalSupply) / _liquidity;
+        uint256 _liquidityBurned = burnAmount.mul(_liquidity) / _totalSupply;
         require(_liquidityBurned < type(uint128).max);
         liquidityBurned = uint128(_liquidityBurned);
 
@@ -177,7 +194,8 @@ contract MetaPool is
     ) external gelatofy(gelato, feeAmount, paymentToken) {
         // If we're swapping pools
         if (currentUniswapFee != newUniswapFee) {
-            switchPools(
+            require(!disablePoolSwitch, "switchPools disabled");
+            _switchPools(
                 newLowerTick,
                 newUpperTick,
                 newUniswapFee,
@@ -187,7 +205,7 @@ contract MetaPool is
             );
         } else {
             // Else we're just adjusting ticks or reinvesting fees
-            adjustCurrentPool(
+            _adjustCurrentPool(
                 newLowerTick,
                 newUpperTick,
                 swapThresholdPrice,
@@ -197,9 +215,37 @@ contract MetaPool is
         }
 
         emit ParamsAdjusted(newLowerTick, newUpperTick, newUniswapFee);
+        lastRebalanceTimestamp = block.timestamp;
     }
 
-    function switchPools(
+    function updateMetaParams(
+        uint256 _supplyCap,
+        uint256 _heartbeat,
+        int24 _minTickDeviation,
+        int24 _maxTickDeviation,
+        bool _disablePoolSwitch,
+        uint32 _observationSeconds,
+        uint160 _maxSlippagePercentage
+    ) external onlyOwner {
+        supplyCap = _supplyCap;
+        heartbeat = _heartbeat;
+        maxTickDeviation = _maxTickDeviation;
+        minTickDeviation = _minTickDeviation;
+        disablePoolSwitch = _disablePoolSwitch;
+        observationSeconds = _observationSeconds;
+        maxSlippagePercentage = _maxSlippagePercentage;
+        emit MetaParamsAdjusted(
+            _supplyCap,
+            _heartbeat,
+            _minTickDeviation,
+            _maxTickDeviation,
+            _disablePoolSwitch,
+            _observationSeconds,
+            _maxSlippagePercentage
+        );
+    }
+
+    function _switchPools(
         int24 newLowerTick,
         int24 newUpperTick,
         uint24 newUniswapFee,
@@ -215,22 +261,14 @@ contract MetaPool is
         uint256 reinvest0;
         uint256 reinvest1;
         {
-            bytes32 positionID =
-                keccak256(
-                    abi.encodePacked(
-                        address(this),
-                        _currentLowerTick,
-                        _currentUpperTick
-                    )
-                );
-            (uint128 _liquidity, , , , ) = _currentPool.positions(positionID);
+            (uint128 _liquidity, , , , ) =
+                _currentPool.positions(_getPositionID());
             (uint256 collected0, uint256 collected1) =
-                withdraw(
+                _withdraw(
                     _currentPool,
                     _currentLowerTick,
                     _currentUpperTick,
-                    _liquidity,
-                    address(this)
+                    _liquidity
                 );
             reinvest0 = paymentToken == token0
                 ? collected0.sub(feeAmount)
@@ -244,6 +282,25 @@ contract MetaPool is
             IUniswapV3Pool(
                 uniswapFactory.getPool(token0, token1, newUniswapFee)
             );
+
+        (, int24 _midTick, , , , , ) = newPool.slot0();
+        if (block.timestamp < lastRebalanceTimestamp.add(heartbeat)) {
+            require(
+                _midTick > _currentUpperTick || _midTick < _currentLowerTick,
+                "cannot rebalance until heartbeat (price still in range)"
+            );
+        }
+        require(
+            _midTick - minTickDeviation >= newLowerTick &&
+                newLowerTick >= _midTick - maxTickDeviation,
+            "lowerTick out of range"
+        );
+        require(
+            _midTick + maxTickDeviation >= newUpperTick &&
+                newUpperTick >= _midTick + minTickDeviation,
+            "upperTick out of range"
+        );
+
         // Store new paramaters as "current"
         (currentLowerTick, currentUpperTick, currentUniswapFee, currentPool) = (
             newLowerTick,
@@ -252,7 +309,9 @@ contract MetaPool is
             newPool
         );
 
-        deposit(
+        _checkSlippage(newPool, swapThresholdPrice);
+
+        _deposit(
             newPool,
             newLowerTick,
             newUpperTick,
@@ -262,7 +321,7 @@ contract MetaPool is
         );
     }
 
-    function adjustCurrentPool(
+    function _adjustCurrentPool(
         int24 newLowerTick,
         int24 newUpperTick,
         uint160 swapThresholdPrice,
@@ -274,26 +333,19 @@ contract MetaPool is
             int24 _currentLowerTick,
             int24 _currentUpperTick
         ) = (currentPool, currentLowerTick, currentUpperTick);
+        _checkSlippage(_currentPool, swapThresholdPrice);
 
-        bytes32 positionID =
-            keccak256(
-                abi.encodePacked(
-                    address(this),
-                    _currentLowerTick,
-                    _currentUpperTick
-                )
-            );
         uint256 reinvest0;
         uint256 reinvest1;
         {
-            (uint128 _liquidity, , , , ) = _currentPool.positions(positionID);
+            (uint128 _liquidity, , , , ) =
+                _currentPool.positions(_getPositionID());
             (uint256 collected0, uint256 collected1) =
-                withdraw(
+                _withdraw(
                     _currentPool,
                     _currentLowerTick,
                     _currentUpperTick,
-                    _liquidity,
-                    address(this)
+                    _liquidity
                 );
             reinvest0 = paymentToken == token0
                 ? collected0.sub(feeAmount)
@@ -303,6 +355,24 @@ contract MetaPool is
                 : collected1;
         }
 
+        (, int24 _midTick, , , , , ) = _currentPool.slot0();
+        if (block.timestamp < lastRebalanceTimestamp.add(heartbeat)) {
+            require(
+                _midTick > _currentUpperTick || _midTick < _currentLowerTick,
+                "cannot rebalance until heartbeat (price still in range)"
+            );
+        }
+        require(
+            _midTick - minTickDeviation >= newLowerTick &&
+                newLowerTick >= _midTick - maxTickDeviation,
+            "lowerTick out of range"
+        );
+        require(
+            _midTick + maxTickDeviation >= newUpperTick &&
+                newUpperTick >= _midTick + minTickDeviation,
+            "upperTick out of range"
+        );
+
         // If ticks were adjusted
         if (
             _currentLowerTick != newLowerTick ||
@@ -311,7 +381,7 @@ contract MetaPool is
             (currentLowerTick, currentUpperTick) = (newLowerTick, newUpperTick);
         }
 
-        deposit(
+        _deposit(
             _currentPool,
             newLowerTick,
             newUpperTick,
@@ -321,7 +391,7 @@ contract MetaPool is
         );
     }
 
-    function deposit(
+    function _deposit(
         IUniswapV3Pool _currentPool,
         int24 lowerTick,
         int24 upperTick,
@@ -348,13 +418,13 @@ contract MetaPool is
                 baseLiquidity,
                 abi.encode(address(this))
             );
+
         amount0 -= amountDeposited0;
         amount1 -= amountDeposited1;
 
         // If we still have some leftover, we need to swap so it's balanced
-        // This part is still a PoC, would need much more intelligent swapping
         if (amount0 > 0 || amount1 > 0) {
-            // TODO: this is a hacky method that only works at somewhat-balanced pools
+            // @dev OG comment: this is a hacky method that only works at somewhat-balanced pools
             bool zeroForOne = amount0 > amount1;
             (int256 amount0Delta, int256 amount1Delta) =
                 _currentPool.swap(
@@ -389,36 +459,94 @@ contract MetaPool is
         }
     }
 
-    function withdraw(
+    function _checkSlippage(
+        IUniswapV3Pool _currentPool,
+        uint160 swapThresholdPrice
+    ) private view {
+        uint32[] memory secondsAgo = new uint32[](2);
+        secondsAgo[0] = observationSeconds;
+        secondsAgo[1] = 0;
+        (int56[] memory tickCumulatives, ) = _currentPool.observe(secondsAgo);
+        require(tickCumulatives.length == 2, "unexpected length of tick array");
+        int24 avgTick =
+            int24(
+                (tickCumulatives[1] - tickCumulatives[0]) / observationSeconds
+            );
+        uint160 avgSqrtRatioX96 = TickMath.getSqrtRatioAtTick(avgTick);
+        uint160 maxSlippage = (avgSqrtRatioX96 * maxSlippagePercentage) / 100;
+        require(
+            avgSqrtRatioX96 + maxSlippage >= swapThresholdPrice &&
+                avgSqrtRatioX96 - maxSlippage <= swapThresholdPrice,
+            "slippage price is out of acceptable price range"
+        );
+    }
+
+    function _withdraw(
         IUniswapV3Pool _currentPool,
         int24 lowerTick,
         int24 upperTick,
-        uint128 liquidity,
-        address recipient
+        uint128 liquidity
     ) private returns (uint256 collected0, uint256 collected1) {
-        // We can request MAX_INT, and Uniswap will just give whatever we're owed
-        uint128 requestAmount0 = type(uint128).max;
-        uint128 requestAmount1 = type(uint128).max;
-
-        (uint256 _owed0, uint256 _owed1) =
-            _currentPool.burn(lowerTick, upperTick, liquidity);
-
-        // If we're withdrawing for a specific user, then we only want to withdraw what they're owed
-        if (recipient != address(this)) {
-            // TODO: can we trust Uniswap and safely cast here?
-            requestAmount0 = uint128(_owed0);
-            requestAmount1 = uint128(_owed1);
-        }
-
-        // Collect all owed
+        _currentPool.burn(lowerTick, upperTick, liquidity);
         (collected0, collected1) = _currentPool.collect(
-            recipient,
+            address(this),
             lowerTick,
             upperTick,
-            requestAmount0,
-            requestAmount1
+            type(uint128).max,
+            type(uint128).max
         );
     }
+
+    // HELPERS
+
+    function getLiquidityForAmounts(
+        uint160 sqrtRatioX96,
+        uint160 sqrtRatioAX96,
+        uint160 sqrtRatioBX96,
+        uint256 amount0,
+        uint256 amount1
+    ) external pure returns (uint128 liquidity) {
+        return
+            LiquidityAmounts.getLiquidityForAmounts(
+                sqrtRatioX96,
+                sqrtRatioAX96,
+                sqrtRatioBX96,
+                amount0,
+                amount1
+            );
+    }
+
+    function getAmountsForLiquidity(
+        uint160 sqrtRatioX96,
+        uint160 sqrtRatioAX96,
+        uint160 sqrtRatioBX96,
+        uint128 liquidity
+    ) external pure returns (uint256 amount0, uint256 amount1) {
+        return
+            LiquidityAmounts.getAmountsForLiquidity(
+                sqrtRatioX96,
+                sqrtRatioAX96,
+                sqrtRatioBX96,
+                liquidity
+            );
+    }
+
+    function getPositionID() external view returns (bytes32 positionID) {
+        return _getPositionID();
+    }
+
+    function _getPositionID() private view returns (bytes32 positionID) {
+        return
+            keccak256(
+                abi.encodePacked(
+                    address(this),
+                    currentLowerTick,
+                    currentUpperTick
+                )
+            );
+    }
+
+    // CALLBACKS
 
     function uniswapV3MintCallback(
         uint256 amount0Owed,
@@ -476,48 +604,5 @@ contract MetaPool is
                 uint256(amount1Delta)
             );
         }
-    }
-
-    function getLiquidityForAmounts(
-        uint160 sqrtRatioX96,
-        uint160 sqrtRatioAX96,
-        uint160 sqrtRatioBX96,
-        uint256 amount0,
-        uint256 amount1
-    ) external pure returns (uint128 liquidity) {
-        return
-            LiquidityAmounts.getLiquidityForAmounts(
-                sqrtRatioX96,
-                sqrtRatioAX96,
-                sqrtRatioBX96,
-                amount0,
-                amount1
-            );
-    }
-
-    function getAmountsForLiquidity(
-        uint160 sqrtRatioX96,
-        uint160 sqrtRatioAX96,
-        uint160 sqrtRatioBX96,
-        uint128 liquidity
-    ) external pure returns (uint256 amount0, uint256 amount1) {
-        return
-            LiquidityAmounts.getAmountsForLiquidity(
-                sqrtRatioX96,
-                sqrtRatioAX96,
-                sqrtRatioBX96,
-                liquidity
-            );
-    }
-
-    function getPositionID() external view returns (bytes32 positionID) {
-        return
-            keccak256(
-                abi.encodePacked(
-                    address(this),
-                    currentLowerTick,
-                    currentUpperTick
-                )
-            );
     }
 }

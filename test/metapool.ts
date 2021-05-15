@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { BigNumber } from "bignumber.js";
-import { ethers } from "hardhat";
+import { ethers, network } from "hardhat";
 import {
   ERC20,
   IUniswapV3Factory,
@@ -40,11 +40,12 @@ describe("MetaPools", function () {
   const nonExistantToken = "0x1111111111111111111111111111111111111111";
   let user0: SignerWithAddress;
   let user1: SignerWithAddress;
+  let user2: SignerWithAddress;
   let swapTest: SwapTest;
   let gelato: SignerWithAddress;
 
   before(async function () {
-    [user0, user1, gelato] = await ethers.getSigners();
+    [user0, user1, user2, gelato] = await ethers.getSigners();
 
     const swapTestFactory = await ethers.getContractFactory("SwapTest");
     swapTest = (await swapTestFactory.deploy()) as SwapTest;
@@ -65,7 +66,8 @@ describe("MetaPools", function () {
     );
     metaPoolFactory = (await metaPoolFactoryFactory.deploy(
       uniswapFactory.address,
-      await gelato.getAddress()
+      await gelato.getAddress(),
+      await user0.getAddress()
     )) as MetaPoolFactory;
 
     const mockERC20Factory = await ethers.getContractFactory("MockERC20");
@@ -108,6 +110,7 @@ describe("MetaPools", function () {
   describe("MetaPoolFactory", async function () {
     it("Should create a metapool for an existing Uniswap V3 pool", async function () {
       const tx = await metaPoolFactory.createPool(
+        "abc",
         token0.address,
         token1.address,
         -887220,
@@ -115,8 +118,8 @@ describe("MetaPools", function () {
       );
       const receipt = await tx.wait();
       let checkAddress = "";
-      if (receipt.events && receipt.events.length == 1) {
-        if (
+      if (receipt.events && receipt.events.length == 3) {
+        /*if (
           receipt.events[0].event &&
           receipt.events[0].args &&
           receipt.events[0].args.length >= 3
@@ -125,8 +128,25 @@ describe("MetaPools", function () {
           expect(receipt.events[0].args[0]).to.equal(token0.address);
           expect(receipt.events[0].args[1]).to.equal(token1.address);
           checkAddress = receipt.events[0].args[2];
-        } else {
-          expect(false).to.be.equal(true);
+        } else if (
+          receipt.events[1].event &&
+          receipt.events[1].args &&
+          receipt.events[1].args.length >= 3   
+        ) {
+          expect(receipt.events[1].event).to.equal("PoolCreated");
+          expect(receipt.events[1].args[0]).to.equal(token0.address);
+          expect(receipt.events[1].args[1]).to.equal(token1.address);
+          checkAddress = receipt.events[1].args[2];         
+        } else*/
+        if (
+          receipt.events[2].event &&
+          receipt.events[2].args &&
+          receipt.events[2].args.length >= 3
+        ) {
+          expect(receipt.events[2].event).to.equal("PoolCreated");
+          expect(receipt.events[2].args[0]).to.equal(token0.address);
+          expect(receipt.events[2].args[1]).to.equal(token1.address);
+          checkAddress = receipt.events[2].args[2];
         }
       } else {
         expect(false).to.be.equal(true);
@@ -154,6 +174,7 @@ describe("MetaPools", function () {
     it("Should fail to create a metapool if there is no Uniswap 0.3% pool", async function () {
       await expect(
         metaPoolFactory.createPool(
+          "abc",
           token0.address,
           nonExistantToken,
           -887220,
@@ -164,6 +185,7 @@ describe("MetaPools", function () {
 
     it("Should fail to create the same pool twice", async function () {
       await metaPoolFactory.createPool(
+        "abc",
         token0.address,
         token1.address,
         -887220,
@@ -171,6 +193,7 @@ describe("MetaPools", function () {
       );
       await expect(
         metaPoolFactory.createPool(
+          "abc",
           token0.address,
           token1.address,
           -887220,
@@ -185,6 +208,7 @@ describe("MetaPools", function () {
 
     beforeEach(async function () {
       await metaPoolFactory.createPool(
+        "abc",
         token0.address,
         token1.address,
         -887220,
@@ -240,7 +264,7 @@ describe("MetaPools", function () {
     });
 
     describe("rebalance", function () {
-      it("should fail if not called by owner", async function () {
+      it("should fail if not called by gelato", async function () {
         await expect(
           metaPool
             .connect(user1)
@@ -251,6 +275,38 @@ describe("MetaPools", function () {
               encodePriceSqrt("10", "1"),
               0,
               token0.address
+            )
+        ).to.be.reverted;
+      });
+      it("should fail if time did not change", async function () {
+        await expect(
+          metaPool
+            .connect(gelato)
+            .rebalance(
+              -443610,
+              443610,
+              "3000",
+              encodePriceSqrt("10", "1"),
+              0,
+              token0.address
+            )
+        ).to.be.reverted;
+      });
+    });
+
+    describe("update accepted parameters", function () {
+      it("should fail if not called by owner", async function () {
+        await expect(
+          metaPool
+            .connect(gelato)
+            .updateMetaParams(
+              ethers.constants.MaxUint256,
+              "42000",
+              "60",
+              "7000",
+              false,
+              "300",
+              "3"
             )
         ).to.be.reverted;
       });
@@ -293,13 +349,57 @@ describe("MetaPools", function () {
               await gelato.getAddress()
             );
 
+            await expect(
+              metaPool
+                .connect(gelato)
+                .rebalance(
+                  -887220,
+                  887220,
+                  "3000",
+                  encodePriceSqrt("1", "1"),
+                  100,
+                  token0.address
+                )
+            ).to.be.reverted;
+
+            const tx = await metaPool
+              .connect(user0)
+              .updateMetaParams(
+                ethers.constants.MaxUint256,
+                "300",
+                "60",
+                "1000000",
+                false,
+                "300",
+                "5"
+              );
+            await tx.wait();
+            if (network.provider && user0.provider && tx.blockHash) {
+              const block = await user0.provider.getBlock(tx.blockHash);
+              const executionTime = block.timestamp + 300;
+              await network.provider.send("evm_mine", [executionTime]);
+            }
+
+            await expect(
+              metaPool
+                .connect(gelato)
+                .rebalance(
+                  -887220,
+                  887220,
+                  "3000",
+                  encodePriceSqrt("100000", "1"),
+                  100,
+                  token0.address
+                )
+            ).to.be.reverted;
+
             await metaPool
               .connect(gelato)
               .rebalance(
                 -887220,
                 887220,
                 "3000",
-                encodePriceSqrt("10000", "1"),
+                encodePriceSqrt("1.1", "1"),
                 100,
                 token0.address
               );
@@ -328,13 +428,44 @@ describe("MetaPools", function () {
               await gelato.getAddress()
             );
 
+            await expect(
+              metaPool
+                .connect(gelato)
+                .rebalance(
+                  -443580,
+                  443580,
+                  "3000",
+                  encodePriceSqrt("10000", "1"),
+                  100,
+                  token0.address
+                )
+            ).to.be.reverted;
+
+            const tx = await metaPool
+              .connect(user0)
+              .updateMetaParams(
+                ethers.constants.MaxUint256,
+                "300",
+                "60",
+                "1000000",
+                false,
+                "300",
+                "5"
+              );
+            await tx.wait();
+            if (network.provider && tx.blockHash && user0.provider) {
+              const block = await user0.provider.getBlock(tx.blockHash);
+              const executionTime = block.timestamp + 300;
+              await network.provider.send("evm_mine", [executionTime]);
+            }
+
             await metaPool
               .connect(gelato)
               .rebalance(
                 -443580,
                 443580,
                 "3000",
-                encodePriceSqrt("10000", "1"),
+                encodePriceSqrt("1.1", "1"),
                 100,
                 token0.address
               );
@@ -357,6 +488,72 @@ describe("MetaPools", function () {
               position(metaPool.address, -443580, 443580)
             );
             expect(liquidityNew).to.be.gt(liquidityOld);
+          });
+
+          it("mint/burn without trading should result in same amounts", async function () {
+            /*const [liquidityOld] = await uniswapPool.positions(
+              position(metaPool.address, -887220, 887220)
+            );*/
+            await token0.transfer(
+              await user2.getAddress(),
+              ethers.utils.parseEther("1000")
+            );
+            await token1.transfer(
+              await user2.getAddress(),
+              ethers.utils.parseEther("1000")
+            );
+            await token0.transfer(
+              await user1.getAddress(),
+              ethers.utils.parseEther("1000")
+            );
+            await token1.transfer(
+              await user1.getAddress(),
+              ethers.utils.parseEther("1000")
+            );
+            await token0
+              .connect(user1)
+              .approve(metaPool.address, ethers.constants.MaxUint256);
+            await token1
+              .connect(user1)
+              .approve(metaPool.address, ethers.constants.MaxUint256);
+            await metaPool.connect(user1).mint(ethers.utils.parseEther("9"));
+            await token0
+              .connect(user2)
+              .approve(metaPool.address, ethers.constants.MaxUint256);
+            await token1
+              .connect(user2)
+              .approve(metaPool.address, ethers.constants.MaxUint256);
+            await metaPool.connect(user2).mint(ethers.utils.parseEther("10"));
+
+            const balanceAfterMint0 = await token0.balanceOf(
+              await user2.getAddress()
+            );
+            const balanceAfterMint1 = await token0.balanceOf(
+              await user2.getAddress()
+            );
+
+            expect(
+              ethers.utils.parseEther("1000").sub(balanceAfterMint0.toString())
+            ).to.be.gt(ethers.BigNumber.from("1"));
+            expect(
+              ethers.utils.parseEther("1000").sub(balanceAfterMint1.toString())
+            ).to.be.gt(ethers.BigNumber.from("1"));
+
+            await metaPool
+              .connect(user2)
+              .burn(await metaPool.balanceOf(await user2.getAddress()));
+            const balanceAfterBurn0 = await token0.balanceOf(
+              await user2.getAddress()
+            );
+            const balanceAfterBurn1 = await token0.balanceOf(
+              await user2.getAddress()
+            );
+            expect(
+              ethers.utils.parseEther("1000").sub(balanceAfterBurn1.toString())
+            ).to.be.lte(ethers.BigNumber.from("1"));
+            expect(
+              ethers.utils.parseEther("1000").sub(balanceAfterBurn0.toString())
+            ).to.be.lte(ethers.BigNumber.from("1"));
           });
 
           it("should change the fee & ticks and rebalance", async function () {
@@ -382,13 +579,44 @@ describe("MetaPools", function () {
               await gelato.getAddress()
             );
 
+            await expect(
+              metaPool
+                .connect(gelato)
+                .rebalance(
+                  -443580,
+                  443580,
+                  500,
+                  encodePriceSqrt("1.1", "1"),
+                  100,
+                  token0.address
+                )
+            ).to.be.reverted;
+
+            const tx = await metaPool
+              .connect(user0)
+              .updateMetaParams(
+                ethers.constants.MaxUint256,
+                "300",
+                "60",
+                "1000000",
+                false,
+                "300",
+                "5"
+              );
+            await tx.wait();
+            if (network.provider && tx.blockHash && user0.provider) {
+              const block = await user0.provider.getBlock(tx.blockHash);
+              const executionTime = block.timestamp + 300;
+              await network.provider.send("evm_mine", [executionTime]);
+            }
+
             await metaPool
               .connect(gelato)
               .rebalance(
                 -443580,
                 443580,
                 500,
-                encodePriceSqrt("10000", "1"),
+                encodePriceSqrt("1.1", "1"),
                 100,
                 token0.address
               );
@@ -430,13 +658,51 @@ describe("MetaPools", function () {
               await gelato.getAddress()
             );
 
+            await expect(
+              metaPool
+                .connect(gelato)
+                .rebalance(
+                  -887220,
+                  887220,
+                  "3000",
+                  encodePriceSqrt("1", "10"),
+                  100,
+                  token0.address
+                )
+            ).to.be.reverted;
+
+            const tx = await metaPool
+              .connect(user0)
+              .updateMetaParams(
+                ethers.constants.MaxUint256,
+                "300",
+                "60",
+                "1000000",
+                false,
+                "300",
+                "5"
+              );
+            await tx.wait();
+            if (network.provider && user0.provider && tx.blockHash) {
+              const block = await user0.provider.getBlock(tx.blockHash);
+              const executionTime = block.timestamp + 300;
+              await network.provider.send("evm_mine", [executionTime]);
+            }
+
+            const { sqrtPriceX96 } = await uniswapPool.slot0();
+            const slippagePrice = sqrtPriceX96.sub(
+              sqrtPriceX96
+                .mul(ethers.BigNumber.from("4"))
+                .div(ethers.BigNumber.from("100"))
+            );
+
             await metaPool
               .connect(gelato)
               .rebalance(
                 -887220,
                 887220,
                 "3000",
-                encodePriceSqrt("1", "10000"),
+                slippagePrice,
                 100,
                 token0.address
               );
@@ -465,13 +731,50 @@ describe("MetaPools", function () {
               await gelato.getAddress()
             );
 
+            await expect(
+              metaPool
+                .connect(gelato)
+                .rebalance(
+                  -443580,
+                  443580,
+                  "3000",
+                  encodePriceSqrt("1", "10000"),
+                  100,
+                  token1.address
+                )
+            ).to.be.reverted;
+
+            const tx = await metaPool
+              .connect(user0)
+              .updateMetaParams(
+                ethers.constants.MaxUint256,
+                "300",
+                "60",
+                "1000000",
+                false,
+                "300",
+                "5"
+              );
+            await tx.wait();
+            if (network.provider && tx.blockHash && user0.provider) {
+              const block = await user0.provider.getBlock(tx.blockHash);
+              const executionTime = block.timestamp + 300;
+              await network.provider.send("evm_mine", [executionTime]);
+            }
+            const { sqrtPriceX96 } = await uniswapPool.slot0();
+            const slippagePrice = sqrtPriceX96.sub(
+              sqrtPriceX96
+                .mul(ethers.BigNumber.from("4"))
+                .div(ethers.BigNumber.from("100"))
+            );
+
             await metaPool
               .connect(gelato)
               .rebalance(
                 -443580,
                 443580,
                 "3000",
-                encodePriceSqrt("1", "10000"),
+                slippagePrice,
                 100,
                 token0.address
               );
@@ -520,13 +823,50 @@ describe("MetaPools", function () {
               await gelato.getAddress()
             );
 
+            await expect(
+              metaPool
+                .connect(gelato)
+                .rebalance(
+                  -443580,
+                  443580,
+                  500,
+                  encodePriceSqrt("1", "10000"),
+                  100,
+                  token0.address
+                )
+            ).to.be.reverted;
+
+            const tx = await metaPool
+              .connect(user0)
+              .updateMetaParams(
+                ethers.constants.MaxUint256,
+                "300",
+                "60",
+                "1000000",
+                false,
+                "300",
+                "5"
+              );
+            await tx.wait();
+            if (network.provider && tx.blockHash && user0.provider) {
+              const block = await user0.provider.getBlock(tx.blockHash);
+              const executionTime = block.timestamp + 300;
+              await network.provider.send("evm_mine", [executionTime]);
+            }
+            const { sqrtPriceX96 } = await uniswapPool.slot0();
+            const slippagePrice = sqrtPriceX96.sub(
+              sqrtPriceX96
+                .mul(ethers.BigNumber.from("4"))
+                .div(ethers.BigNumber.from("100"))
+            );
+
             await metaPool
               .connect(gelato)
               .rebalance(
                 -443580,
                 443580,
                 500,
-                encodePriceSqrt("1", "10000"),
+                slippagePrice,
                 100,
                 token0.address
               );

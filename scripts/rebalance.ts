@@ -1,6 +1,6 @@
 import { ethers, network } from "hardhat";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signer-with-address";
-import { getAddresses } from "../hardhat/addresses";
+import { getAddresses } from "../src/addresses";
 import { BigNumber } from "bignumber.js";
 
 const addresses = getAddresses(network.name);
@@ -25,7 +25,7 @@ const op = async (signer: SignerWithAddress) => {
   );
   const poolAddr = await metapool.currentPool();
   const pool = await ethers.getContractAt("IUniswapV3Pool", poolAddr, signer);
-  const { tick } = await pool.slot0();
+  const { sqrtPriceX96, tick } = await pool.slot0();
   let tickLow = tick - 500;
   let tickHigh = tick + 500;
   while (tickLow % 60 != 0) {
@@ -34,11 +34,16 @@ const op = async (signer: SignerWithAddress) => {
   while (tickHigh % 60 != 0) {
     tickHigh = tickHigh + 1;
   }
+
+  const slippagePrice = sqrtPriceX96.add(
+    sqrtPriceX96.mul(ethers.BigNumber.from("4")).div("100")
+  );
+
   await metapool.rebalance(
     tickLow.toString(),
     tickHigh.toString(),
     "3000",
-    encodePriceSqrt("1000000", "1"), // if swapping ETH for DAI
+    slippagePrice, // if swapping ETH for DAI
     ethers.utils.parseEther("0.001"),
     addresses.WETH,
     { gasLimit: 6000000 }

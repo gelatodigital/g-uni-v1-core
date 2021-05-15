@@ -1,6 +1,6 @@
 import { ethers, network } from "hardhat";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signer-with-address";
-import { getAddresses } from "../hardhat/addresses";
+import { getAddresses } from "../src/addresses";
 
 const addresses = getAddresses(network.name);
 
@@ -22,9 +22,12 @@ const op = async (signer: SignerWithAddress) => {
   );
 
   // @dev change these amounts to your needs
-  await weth.approve(metapool.address, ethers.utils.parseEther("10000"));
-  await dai.approve(metapool.address, ethers.utils.parseEther("10000"));
-  await metapool.mint(ethers.utils.parseEther("10"), { gasLimit: 2000000 });
+  const tx = await weth.approve(
+    metapool.address,
+    ethers.utils.parseEther("0.1")
+  );
+  await dai.approve(metapool.address, ethers.utils.parseEther("200"));
+  await metapool.mint(ethers.utils.parseEther("3"), { gasLimit: 400000 });
 };
 
 (async () => {
