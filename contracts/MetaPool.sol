@@ -18,6 +18,8 @@ import {
 } from "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
 import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 
+import "@uniswap/v3-core/contracts/interfaces/IERC20Minimal.sol";
+
 import {IMetaPoolFactory} from "./interfaces/IMetaPoolFactory.sol";
 import {TransferHelper} from "./libraries/TransferHelper.sol";
 import {LiquidityAmounts} from "./libraries/LiquidityAmounts.sol";
@@ -78,6 +80,10 @@ contract MetaPool is
         uint32 observationSeconds,
         uint160 maxSlippagePercentage
     );
+
+    event Minted(address minter, uint128 liquidityAdded, uint256 mintAmount);
+
+    event Burned(address burner, uint128 liquidityRemoved, uint256 burnAmount);
 
     constructor() {
         IMetaPoolFactory _factory = IMetaPoolFactory(msg.sender);
@@ -143,6 +149,7 @@ contract MetaPool is
         );
 
         _mint(msg.sender, mintAmount);
+        emit Minted(msg.sender, newLiquidity, mintAmount);
     }
 
     function burn(uint256 burnAmount)
@@ -182,6 +189,8 @@ contract MetaPool is
             uint128(amount0), // cast can't overflow
             uint128(amount1) // cast can't overflow
         );
+
+        emit Burned(msg.sender, liquidityBurned, burnAmount);
     }
 
     function rebalance(
@@ -263,19 +272,20 @@ contract MetaPool is
         {
             (uint128 _liquidity, , , , ) =
                 _currentPool.positions(_getPositionID());
-            (uint256 collected0, uint256 collected1) =
-                _withdraw(
-                    _currentPool,
-                    _currentLowerTick,
-                    _currentUpperTick,
-                    _liquidity
-                );
+            _withdraw(
+                _currentPool,
+                _currentLowerTick,
+                _currentUpperTick,
+                _liquidity
+            );
+            uint256 balance0 = IERC20Minimal(token0).balanceOf(address(this));
+            uint256 balance1 = IERC20Minimal(token1).balanceOf(address(this));
             reinvest0 = paymentToken == token0
-                ? collected0.sub(feeAmount)
-                : collected0;
+                ? balance0.sub(feeAmount)
+                : balance0;
             reinvest1 = paymentToken == token1
-                ? collected1.sub(feeAmount)
-                : collected1;
+                ? balance1.sub(feeAmount)
+                : balance1;
         }
 
         IUniswapV3Pool newPool =
@@ -340,19 +350,20 @@ contract MetaPool is
         {
             (uint128 _liquidity, , , , ) =
                 _currentPool.positions(_getPositionID());
-            (uint256 collected0, uint256 collected1) =
-                _withdraw(
-                    _currentPool,
-                    _currentLowerTick,
-                    _currentUpperTick,
-                    _liquidity
-                );
+            _withdraw(
+                _currentPool,
+                _currentLowerTick,
+                _currentUpperTick,
+                _liquidity
+            );
+            uint256 balance0 = IERC20Minimal(token0).balanceOf(address(this));
+            uint256 balance1 = IERC20Minimal(token1).balanceOf(address(this));
             reinvest0 = paymentToken == token0
-                ? collected0.sub(feeAmount)
-                : collected0;
+                ? balance0.sub(feeAmount)
+                : balance0;
             reinvest1 = paymentToken == token1
-                ? collected1.sub(feeAmount)
-                : collected1;
+                ? balance1.sub(feeAmount)
+                : balance1;
         }
 
         (, int24 _midTick, , , , , ) = _currentPool.slot0();
@@ -424,7 +435,6 @@ contract MetaPool is
 
         // If we still have some leftover, we need to swap so it's balanced
         if (amount0 > 0 || amount1 > 0) {
-            // @dev OG comment: this is a hacky method that only works at somewhat-balanced pools
             bool zeroForOne = amount0 > amount1;
             (int256 amount0Delta, int256 amount1Delta) =
                 _currentPool.swap(
@@ -486,9 +496,9 @@ contract MetaPool is
         int24 lowerTick,
         int24 upperTick,
         uint128 liquidity
-    ) private returns (uint256 collected0, uint256 collected1) {
+    ) private {
         _currentPool.burn(lowerTick, upperTick, liquidity);
-        (collected0, collected1) = _currentPool.collect(
+        _currentPool.collect(
             address(this),
             lowerTick,
             upperTick,

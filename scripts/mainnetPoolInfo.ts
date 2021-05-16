@@ -83,7 +83,9 @@ const op = async (signer: SignerWithAddress) => {
       .toString()
   );
 
-  const { _liquidity } = await pool.positions(await metapool.getPositionID());
+  const { _liquidity, tokensOwed0, tokensOwed1 } = await pool.positions(
+    await metapool.getPositionID()
+  );
 
   const {
     feeGrowthOutside0X128: feeGrowthOutsideL0,
@@ -121,11 +123,25 @@ const op = async (signer: SignerWithAddress) => {
     Number(positionUpper)
   );
 
+  const { amount0, amount1 } = await pool.callStatic.collect(
+    addresses.gUNIV3,
+    positionLower,
+    positionUpper,
+    ethers.utils.parseEther("100000000"),
+    ethers.utils.parseEther("100000000"),
+    { from: addresses.gUNIV3 }
+  );
+
   console.log("unclaimed DAI fees:", ethers.utils.formatEther(fee0.toString()));
   console.log(
     "unclaimed WETH fees:",
     ethers.utils.formatEther(fee1.toString())
   );
+
+  console.log(ethers.utils.formatEther(amount0));
+  console.log(ethers.utils.formatEther(amount1));
+  console.log(ethers.utils.formatEther(tokensOwed0));
+  console.log(ethers.utils.formatEther(tokensOwed1));
 };
 
 (async () => {
