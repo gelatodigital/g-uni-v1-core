@@ -15,7 +15,6 @@ const op = async (signer: SignerWithAddress) => {
     "600",
     "120",
     "7000",
-    true, // this is a param we are changing: disallow switch pools
     "300",
     "5"
   );

@@ -4,7 +4,7 @@ pragma solidity ^0.7.0;
 import "../ERC20.sol";
 
 contract MockERC20 is ERC20 {
-    constructor() {
+    constructor() ERC20("") {
         _mint(msg.sender, 100000e18);
     }
 }

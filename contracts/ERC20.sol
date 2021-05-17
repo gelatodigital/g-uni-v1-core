@@ -7,7 +7,7 @@ contract ERC20 {
     using LowGasSafeMath for uint256;
 
     string public name;
-    string public constant symbol = "gUNIV3";
+    string public constant symbol = "gUNI";
     uint8 public constant decimals = 18;
     uint256 public totalSupply;
 
@@ -28,8 +28,9 @@ contract ERC20 {
     );
     event Transfer(address indexed from, address indexed to, uint256 value);
 
-    constructor() {
+    constructor(string memory _name) {
         uint256 chainId;
+        name = _name;
         assembly {
             chainId := chainid()
         }
@@ -44,10 +45,6 @@ contract ERC20 {
                 address(this)
             )
         );
-    }
-
-    function _setName(string memory _name) internal {
-        name = _name;
     }
 
     function _mint(address to, uint256 value) internal {
