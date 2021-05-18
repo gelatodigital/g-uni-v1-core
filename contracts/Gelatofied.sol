@@ -4,7 +4,7 @@ pragma solidity 0.7.3;
 import {TransferHelper} from "./libraries/TransferHelper.sol";
 
 abstract contract Gelatofied {
-    address public constant ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    address private constant ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     modifier gelatofy(
         address _gelato,

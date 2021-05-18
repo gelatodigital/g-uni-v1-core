@@ -15,7 +15,7 @@ pragma solidity ^0.7.0;
  * the owner.
  */
 abstract contract Ownable {
-    address private _owner;
+    address private _admin;
 
     event OwnershipTransferred(
         address indexed previousOwner,
@@ -25,23 +25,24 @@ abstract contract Ownable {
     /**
      * @dev Initializes the contract setting the deployer as the initial owner.
      */
-    constructor() {
-        _owner = msg.sender;
-        emit OwnershipTransferred(address(0), msg.sender);
+    constructor() {}
+
+    function _setAdmin(address firstAdmin) internal {
+        _admin = firstAdmin;
     }
 
     /**
      * @dev Returns the address of the current owner.
      */
-    function owner() public view virtual returns (address) {
-        return _owner;
+    function admin() public view virtual returns (address) {
+        return _admin;
     }
 
     /**
      * @dev Throws if called by any account other than the owner.
      */
-    modifier onlyOwner() {
-        require(owner() == msg.sender, "Ownable: caller is not the owner");
+    modifier onlyAdmin() {
+        require(admin() == msg.sender, "Ownable: caller is not the owner");
         _;
     }
 
@@ -52,21 +53,21 @@ abstract contract Ownable {
      * NOTE: Renouncing ownership will leave the contract without an owner,
      * thereby removing any functionality that is only available to the owner.
      */
-    function renounceOwnership() public virtual onlyOwner {
-        emit OwnershipTransferred(_owner, address(0));
-        _owner = address(0);
+    function renounceAdmin() public virtual onlyAdmin {
+        emit OwnershipTransferred(_admin, address(0));
+        _admin = address(0);
     }
 
     /**
      * @dev Transfers ownership of the contract to a new account (`newOwner`).
      * Can only be called by the current owner.
      */
-    function transferOwnership(address newOwner) public virtual onlyOwner {
+    function transferAdmin(address newAdmin) public virtual onlyAdmin {
         require(
-            newOwner != address(0),
+            newAdmin != address(0),
             "Ownable: new owner is the zero address"
         );
-        emit OwnershipTransferred(_owner, newOwner);
-        _owner = newOwner;
+        emit OwnershipTransferred(_admin, newAdmin);
+        _admin = newAdmin;
     }
 }
