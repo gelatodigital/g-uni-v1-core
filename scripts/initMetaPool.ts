@@ -5,15 +5,15 @@ import { getAddresses } from "../src/addresses";
 const addresses = getAddresses(network.name);
 
 const op = async (signer: SignerWithAddress) => {
-  const metapool = await ethers.getContractAt(
-    "MetaPool",
+  const gelatoUniV3Pool = await ethers.getContractAt(
+    "GelatoUniV3Pool",
     addresses.gUNIV3,
     signer
   );
-  await metapool.initialize(
+  await gelatoUniV3Pool.initialize(
+    ethers.utils.parseEther("20000"),
     -82500,
     -81000,
-    ethers.utils.parseEther("20000"),
     await signer.getAddress(),
     { gasLimit: 1000000 }
   );

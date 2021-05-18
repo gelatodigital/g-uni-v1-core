@@ -11,26 +11,26 @@ interface ERC165 {
 contract EIP173Proxy is Proxy {
     // ////////////////////////// EVENTS ///////////////////////////////////////////////////////////////////////
 
-    event OwnershipTransferred(
-        address indexed previousOwner,
-        address indexed newOwner
+    event ProxyAdminTransferred(
+        address indexed previousAdmin,
+        address indexed newAdmin
     );
 
     // /////////////////////// CONSTRUCTOR //////////////////////////////////////////////////////////////////////
 
     constructor(
         address implementationAddress,
-        address ownerAddress,
+        address adminAddress,
         bytes memory data
     ) payable {
         _setImplementation(implementationAddress, data);
-        _setOwner(ownerAddress);
+        _setProxyAdmin(adminAddress);
     }
 
     // ///////////////////// EXTERNAL ///////////////////////////////////////////////////////////////////////////
 
-    function owner() external view returns (address) {
-        return _owner();
+    function proxyAdmin() external view returns (address) {
+        return _proxyAdmin();
     }
 
     function supportsInterface(bytes4 id) external view returns (bool) {
@@ -59,32 +59,32 @@ contract EIP173Proxy is Proxy {
         }
     }
 
-    function transferOwnership(address newOwner) external onlyOwner {
-        _setOwner(newOwner);
+    function transferProxyAdmin(address newAdmin) external onlyProxyAdmin {
+        _setProxyAdmin(newAdmin);
     }
 
-    function upgradeTo(address newImplementation) external onlyOwner {
+    function upgradeTo(address newImplementation) external onlyProxyAdmin {
         _setImplementation(newImplementation, "");
     }
 
     function upgradeToAndCall(address newImplementation, bytes calldata data)
         external
         payable
-        onlyOwner
+        onlyProxyAdmin
     {
         _setImplementation(newImplementation, data);
     }
 
     // /////////////////////// MODIFIERS ////////////////////////////////////////////////////////////////////////
 
-    modifier onlyOwner() {
-        require(msg.sender == _owner(), "NOT_AUTHORIZED");
+    modifier onlyProxyAdmin() {
+        require(msg.sender == _proxyAdmin(), "NOT_AUTHORIZED");
         _;
     }
 
     // ///////////////////////// INTERNAL //////////////////////////////////////////////////////////////////////
 
-    function _owner() internal view returns (address adminAddress) {
+    function _proxyAdmin() internal view returns (address adminAddress) {
         // solhint-disable-next-line security/no-inline-assembly
         assembly {
             adminAddress := sload(
@@ -93,15 +93,15 @@ contract EIP173Proxy is Proxy {
         }
     }
 
-    function _setOwner(address newOwner) internal {
-        address previousOwner = _owner();
+    function _setProxyAdmin(address newAdmin) internal {
+        address previousAdmin = _proxyAdmin();
         // solhint-disable-next-line security/no-inline-assembly
         assembly {
             sstore(
                 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103,
-                newOwner
+                newAdmin
             )
         }
-        emit OwnershipTransferred(previousOwner, newOwner);
+        emit ProxyAdminTransferred(previousAdmin, newAdmin);
     }
 }

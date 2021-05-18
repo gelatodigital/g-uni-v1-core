@@ -27,8 +27,8 @@ jobs: # a collection of steps
           name: Build
           command: yarn build
       - run: # Formatting
-          name: Prettier Check
-          command: yarn prettier --check .
+          name: Prettier
+          command: yarn format
       - run: # Linting
           name: ESLint
           command: yarn lint

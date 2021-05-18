@@ -5,12 +5,12 @@ import { getAddresses } from "../src/addresses";
 const addresses = getAddresses(network.name);
 
 const op = async (signer: SignerWithAddress) => {
-  const metapool = await ethers.getContractAt(
-    "MetaPool",
+  const gelatoUniV3Pool = await ethers.getContractAt(
+    "GelatoUniV3Pool",
     addresses.gUNIV3,
     signer
   );
-  await metapool.updateMetaParams(
+  await gelatoUniV3Pool.updateMetaParams(
     ethers.utils.parseEther("25"), // this is a param we are changing: lower supply cap
     "600",
     "120",

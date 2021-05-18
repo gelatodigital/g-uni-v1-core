@@ -5,9 +5,11 @@ import { BigNumber } from "bignumber.js";
 
 const addresses = getAddresses(network.name);
 
+// eslint-disable-next-line @typescript-eslint/naming-convention
 BigNumber.config({ EXPONENTIAL_AT: 999999, DECIMAL_PLACES: 40 });
 
 // returns the sqrt price as a 64x96
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const encodePriceSqrt = (reserve1: string, reserve0: string) => {
   return new BigNumber(reserve1.toString())
     .div(reserve0.toString())
@@ -18,12 +20,12 @@ const encodePriceSqrt = (reserve1: string, reserve0: string) => {
 };
 
 const op = async (signer: SignerWithAddress) => {
-  const metapool = await ethers.getContractAt(
-    "MetaPool",
+  const gelatoUniV3Pool = await ethers.getContractAt(
+    "GelatoUniV3Pool",
     addresses.gUNIV3,
     signer
   );
-  const poolAddr = await metapool.pool();
+  const poolAddr = await gelatoUniV3Pool.pool();
   const pool = await ethers.getContractAt("IUniswapV3Pool", poolAddr, signer);
   const { sqrtPriceX96, tick } = await pool.slot0();
   let tickLow = tick - 500;
@@ -39,7 +41,7 @@ const op = async (signer: SignerWithAddress) => {
     sqrtPriceX96.mul(ethers.BigNumber.from("4")).div("100")
   );
 
-  await metapool.rebalance(
+  await gelatoUniV3Pool.rebalance(
     tickLow.toString(),
     tickHigh.toString(),
     slippagePrice, // if swapping ETH for DAI

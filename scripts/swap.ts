@@ -5,6 +5,7 @@ import { getAddresses } from "../src/addresses";
 
 const addresses = getAddresses(network.name);
 
+// eslint-disable-next-line @typescript-eslint/naming-convention
 BigNumber.config({ EXPONENTIAL_AT: 999999, DECIMAL_PLACES: 40 });
 
 // returns the sqrt price as a 64x96
@@ -18,12 +19,12 @@ const encodePriceSqrt = (reserve1: string, reserve0: string) => {
 };
 
 const op = async (signer: SignerWithAddress) => {
-  const metaPool = await ethers.getContractAt(
-    "MetaPool",
+  const gelatoUniV3Pool = await ethers.getContractAt(
+    "GelatoUniV3Pool",
     addresses.gUNIV3,
     signer
   );
-  const uniPoolAddress = await metaPool.currentPool();
+  const uniPoolAddress = await gelatoUniV3Pool.currentPool();
   const swapper = await ethers.getContractAt(
     "SwapTest",
     addresses.Swapper,

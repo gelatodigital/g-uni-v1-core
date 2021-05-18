@@ -1,22 +1,24 @@
-// SPDX-License-Identifier: UNLICENSED
-pragma solidity 0.7.3;
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.4;
 
 import {TransferHelper} from "./libraries/TransferHelper.sol";
 
 abstract contract Gelatofied {
-    address private constant ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    using TransferHelper for address;
 
-    modifier gelatofy(
-        address _gelato,
-        uint256 _amount,
-        address _paymentToken
-    ) {
-        require(msg.sender == _gelato, "Gelatofied: Only gelato");
+    // solhint-disable-next-line var-name-mixedcase
+    address public immutable GELATO;
+
+    address private constant _ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+
+    constructor(address _gelato) {
+        GELATO = _gelato;
+    }
+
+    modifier gelatofy(uint256 _amount, address _paymentToken) {
+        require(msg.sender == GELATO, "Gelatofied: Only gelato");
         _;
-        if (_paymentToken == ETH) {
-            TransferHelper.safeTransferETH(_gelato, _amount);
-        } else {
-            TransferHelper.safeTransfer(_paymentToken, _gelato, _amount);
-        }
+        if (_paymentToken == _ETH) GELATO.safeTransferETH(_amount);
+        else _paymentToken.safeTransfer(GELATO, _amount);
     }
 }

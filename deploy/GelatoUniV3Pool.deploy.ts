@@ -10,7 +10,7 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     hre.network.name === "ropsten"
   ) {
     console.log(
-      `!! Deploying MetaPool to mainnet/testnet. Hit ctrl + c to abort`
+      `!! Deploying GelatoUniV3Pool to mainnet/testnet. Hit ctrl + c to abort`
     );
     await new Promise((r) => setTimeout(r, 20000));
   }
@@ -19,7 +19,7 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   const { deployer } = await getNamedAccounts();
   const addresses = getAddresses(hre.network.name);
 
-  await deploy("MetaPool", {
+  await deploy("GelatoUniV3Pool", {
     from: deployer,
     proxy: {
       proxyContract: "EIP173ProxyWithReceive",
@@ -27,8 +27,6 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     args: [addresses.WethDaiV3Pool, addresses.Gelato],
   });
 };
-
-export default func;
 
 func.skip = async (hre: HardhatRuntimeEnvironment) => {
   const shouldSkip =
@@ -38,4 +36,6 @@ func.skip = async (hre: HardhatRuntimeEnvironment) => {
   return shouldSkip ? true : false;
 };
 
-func.tags = ["SwapTest"];
+func.tags = ["GelatoUniV3Pool"];
+
+export default func;
