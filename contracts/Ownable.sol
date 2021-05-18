@@ -25,9 +25,10 @@ abstract contract Ownable {
     /**
      * @dev Initializes the contract setting the deployer as the initial owner.
      */
-    constructor() {
-        _admin = msg.sender;
-        emit OwnershipTransferred(address(0), msg.sender);
+    constructor() {}
+
+    function _setAdmin(address firstAdmin) internal {
+        _admin = firstAdmin;
     }
 
     /**

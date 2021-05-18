@@ -12,7 +12,7 @@ abstract contract Proxy {
 
     // ///////////////////// EXTERNAL ///////////////////////////////////////////////////////////////////////////
 
-    receive() external virtual payable {
+    receive() external payable virtual {
         revert("ETHER_REJECTED"); // explicit reject by default
     }
 

@@ -99,12 +99,16 @@ describe("MetaPools", function () {
 
     const metapoolFactory = await ethers.getContractFactory("MetaPool");
     metapool = (await metapoolFactory.deploy(
-      "",
       uniswapPoolAddress,
-      -887220,
-      887220,
       await gelato.getAddress()
     )) as MetaPool;
+
+    await metapool.initialize(
+      -887220,
+      887220,
+      ethers.utils.parseEther("20000"),
+      await user0.getAddress()
+    );
   });
 
   describe("MetaPool", function () {
@@ -450,7 +454,7 @@ describe("MetaPools", function () {
         });
       });
 
-      describe("integrated test", function () {
+      describe("simulate price moves and deposits, prove all value is returned on burn", function () {
         it("does not get tokens stuck in contract", async function () {
           await swapTest.washTrade(uniswapPool.address, "50000", 100, 3);
           await swapTest.washTrade(uniswapPool.address, "50000", 100, 3);

@@ -6,20 +6,20 @@ import "@uniswap/v3-core/contracts/libraries/LowGasSafeMath.sol";
 contract ERC20 {
     using LowGasSafeMath for uint256;
 
-    string public name;
-    string public constant symbol = "gUNI";
+    string public constant name = "Gelato Uniswap V3 WETH/DAI LP";
+    string public constant symbol = "gUNIV3";
     uint8 public constant decimals = 18;
-    uint256 public totalSupply;
+    uint256 private _totalSupply;
 
-    mapping(address => uint256) public balanceOf;
-    mapping(address => mapping(address => uint256)) public allowance;
+    mapping(address => uint256) private _balanceOf;
+    mapping(address => mapping(address => uint256)) private _allowance;
 
-    bytes32 public DOMAIN_SEPARATOR;
-    bytes32 public constant PERMIT_TYPEHASH =
+    bytes32 public immutable DOMAIN_SEPARATOR;
+    bytes32 private constant _PERMIT_TYPEHASH =
         keccak256(
             "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
         );
-    mapping(address => uint256) public nonces;
+    mapping(address => uint256) private _nonces;
 
     event Approval(
         address indexed owner,
@@ -28,9 +28,8 @@ contract ERC20 {
     );
     event Transfer(address indexed from, address indexed to, uint256 value);
 
-    constructor(string memory _name) {
+    constructor() {
         uint256 chainId;
-        name = _name;
         assembly {
             chainId := chainid()
         }
@@ -47,15 +46,43 @@ contract ERC20 {
         );
     }
 
+    function totalSupply() public view returns (uint256) {
+        return totalSupplyInternal();
+    }
+
+    function totalSupplyInternal() internal view returns (uint256) {
+        return _totalSupply;
+    }
+
+    function balanceOf(address account) external view returns (uint256) {
+        return _balanceOf[account];
+    }
+
+    function allowance(address owner, address spender)
+        external
+        view
+        returns (uint256)
+    {
+        return _allowance[owner][spender];
+    }
+
+    function PERMIT_TYPEHASH() external pure returns (bytes32) {
+        return _PERMIT_TYPEHASH;
+    }
+
+    function nonces(address account) external view returns (uint256) {
+        return _nonces[account];
+    }
+
     function _mint(address to, uint256 value) internal {
-        totalSupply = totalSupply.add(value);
-        balanceOf[to] = balanceOf[to].add(value);
+        _totalSupply = _totalSupply.add(value);
+        _balanceOf[to] = _balanceOf[to].add(value);
         emit Transfer(address(0), to, value);
     }
 
     function _burn(address from, uint256 value) internal {
-        balanceOf[from] = balanceOf[from].sub(value);
-        totalSupply = totalSupply.sub(value);
+        _balanceOf[from] = _balanceOf[from].sub(value);
+        _totalSupply = _totalSupply.sub(value);
         emit Transfer(from, address(0), value);
     }
 
@@ -64,7 +91,7 @@ contract ERC20 {
         address spender,
         uint256 value
     ) private {
-        allowance[owner][spender] = value;
+        _allowance[owner][spender] = value;
         emit Approval(owner, spender, value);
     }
 
@@ -73,8 +100,8 @@ contract ERC20 {
         address to,
         uint256 value
     ) private {
-        balanceOf[from] = balanceOf[from].sub(value);
-        balanceOf[to] = balanceOf[to].add(value);
+        _balanceOf[from] = _balanceOf[from].sub(value);
+        _balanceOf[to] = _balanceOf[to].add(value);
         emit Transfer(from, to, value);
     }
 
@@ -93,8 +120,8 @@ contract ERC20 {
         address to,
         uint256 value
     ) external returns (bool) {
-        if (allowance[from][msg.sender] != uint256(-1)) {
-            allowance[from][msg.sender] = allowance[from][msg.sender].sub(
+        if (_allowance[from][msg.sender] != uint256(-1)) {
+            _allowance[from][msg.sender] = _allowance[from][msg.sender].sub(
                 value
             );
         }
@@ -111,7 +138,7 @@ contract ERC20 {
         bytes32 r,
         bytes32 s
     ) external {
-        require(deadline >= block.timestamp, "UniswapV2: EXPIRED");
+        require(deadline >= block.timestamp, "EXPIRED");
         bytes32 digest =
             keccak256(
                 abi.encodePacked(
@@ -119,11 +146,11 @@ contract ERC20 {
                     DOMAIN_SEPARATOR,
                     keccak256(
                         abi.encode(
-                            PERMIT_TYPEHASH,
+                            _PERMIT_TYPEHASH,
                             owner,
                             spender,
                             value,
-                            nonces[owner]++,
+                            _nonces[owner]++,
                             deadline
                         )
                     )

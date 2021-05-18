@@ -35,8 +35,8 @@ contract MetaPool is
 {
     using LowGasSafeMath for uint256;
 
-    int24 public currentLowerTick;
-    int24 public currentUpperTick;
+    int24 private _currentLowerTick;
+    int24 private _currentUpperTick;
 
     IUniswapV3Pool public immutable pool;
     IERC20Minimal public immutable token0;
@@ -44,17 +44,17 @@ contract MetaPool is
 
     address public immutable gelato;
 
-    int24 private constant MIN_TICK = -887220;
-    int24 private constant MAX_TICK = 887220;
+    uint256 private _lastRebalanceTimestamp;
 
-    uint256 public lastRebalanceTimestamp;
+    uint256 private _supplyCap;
+    uint256 private _heartbeat;
+    int24 private _minTickDeviation;
+    int24 private _maxTickDeviation;
+    uint32 private _observationSeconds;
+    uint160 private _maxSlippagePercentage;
 
-    uint256 public supplyCap = 20000 * 10**18; // default: 20,000 gUNIV3
-    uint256 public heartbeat = 86400; // default: one day
-    int24 public minTickDeviation = 120; // default: ~1% price difference up and down
-    int24 public maxTickDeviation = 7000; // default: ~100% price difference up and down
-    uint32 public observationSeconds = 300; // default: last five minutes;
-    uint160 public maxSlippagePercentage = 5; //default: 5% slippage
+    address public immutable firstAdmin;
+    bool private initialized;
 
     event ParamsAdjusted(int24 newLowerTick, int24 newUpperTick);
 
@@ -81,36 +81,50 @@ contract MetaPool is
         uint256 amount1Out
     );
 
-    constructor(
-        string memory _name,
-        IUniswapV3Pool _pool,
-        int24 _initialLowerTick,
-        int24 _initialUpperTick,
-        address _gelato
-    ) ERC20(_name) {
+    constructor(IUniswapV3Pool _pool, address _gelato) {
         pool = _pool;
         token0 = IERC20Minimal(_pool.token0());
         token1 = IERC20Minimal(_pool.token1());
-
-        currentLowerTick = _initialLowerTick;
-        currentUpperTick = _initialUpperTick;
+        firstAdmin = msg.sender;
 
         gelato = _gelato;
+    }
+
+    function initialize(
+        int24 _lowerTick,
+        int24 _upperTick,
+        uint256 supply,
+        address admin
+    ) external {
+        require(
+            !initialized && msg.sender == firstAdmin,
+            "only admin can initialize, and only once"
+        );
+        _currentLowerTick = _lowerTick;
+        _currentUpperTick = _upperTick;
+        _minTickDeviation = 120; // default: ~1% price difference up and down
+        _maxTickDeviation = 7000; // default: ~100% price difference up and down
+        _observationSeconds = 300; // default: last five minutes;
+        _maxSlippagePercentage = 5; //default: 5% slippage
+        _heartbeat = 86400; // default: one day
+        _supplyCap = supply;
+        _setAdmin(admin);
+        initialized = true;
     }
 
     function mint(uint128 newLiquidity) external returns (uint256 mintAmount) {
         require(newLiquidity > 0);
 
         (uint128 _liquidity, , , , ) = pool.positions(_getPositionID());
-
-        if (totalSupply == 0) {
+        uint256 supply = totalSupply();
+        if (supply == 0) {
             mintAmount = newLiquidity;
         } else {
-            mintAmount = uint256(newLiquidity).mul(totalSupply) / _liquidity;
+            mintAmount = uint256(newLiquidity).mul(supply) / _liquidity;
         }
         require(
-            supplyCap >= totalSupply.add(mintAmount),
-            "cannot mint more than supplyCap"
+            _supplyCap >= supply.add(mintAmount),
+            "cannot mint more than _supplyCap"
         );
 
         // proportionally add to any uninvested capital as well
@@ -145,8 +159,8 @@ contract MetaPool is
         (uint256 amount0, uint256 amount1) =
             pool.mint(
                 address(this),
-                currentLowerTick,
-                currentUpperTick,
+                _currentLowerTick,
+                _currentUpperTick,
                 newLiquidity,
                 abi.encode(msg.sender)
             );
@@ -170,34 +184,33 @@ contract MetaPool is
         )
     {
         require(burnAmount > 0);
-        uint256 _totalSupply = totalSupply;
+        uint256 supply = totalSupply();
 
         (uint128 _liquidity, , , , ) = pool.positions(_getPositionID());
 
         _burn(msg.sender, burnAmount);
 
-        uint256 _liquidityBurned = burnAmount.mul(_liquidity) / _totalSupply;
+        uint256 _liquidityBurned = burnAmount.mul(_liquidity) / supply;
         require(_liquidityBurned < type(uint128).max);
         liquidityBurned = uint128(_liquidityBurned);
 
         (amount0, amount1) = pool.burn(
-            currentLowerTick,
-            currentUpperTick,
+            _currentLowerTick,
+            _currentUpperTick,
             liquidityBurned
         );
 
         // Withdraw tokens to user
         pool.collect(
             msg.sender,
-            currentLowerTick,
-            currentUpperTick,
+            _currentLowerTick,
+            _currentUpperTick,
             uint128(amount0), // cast can't overflow
             uint128(amount1) // cast can't overflow
         );
 
         uint256 extraAmount0 =
-            uint256(burnAmount).mul(token0.balanceOf(address(this))) /
-                _totalSupply;
+            uint256(burnAmount).mul(token0.balanceOf(address(this))) / supply;
         if (extraAmount0 > 0) {
             TransferHelper.safeTransfer(
                 address(token0),
@@ -206,8 +219,7 @@ contract MetaPool is
             );
         }
         uint256 extraAmount1 =
-            uint256(burnAmount).mul(token1.balanceOf(address(this))) /
-                _totalSupply;
+            uint256(burnAmount).mul(token1.balanceOf(address(this))) / supply;
         if (extraAmount1 > 0) {
             TransferHelper.safeTransfer(
                 address(token1),
@@ -240,30 +252,30 @@ contract MetaPool is
         );
 
         emit ParamsAdjusted(newLowerTick, newUpperTick);
-        lastRebalanceTimestamp = block.timestamp;
+        _lastRebalanceTimestamp = block.timestamp;
     }
 
     function updateMetaParams(
-        uint256 _supplyCap,
-        uint256 _heartbeat,
-        int24 _minTickDeviation,
-        int24 _maxTickDeviation,
-        uint32 _observationSeconds,
-        uint160 _maxSlippagePercentage
+        uint256 __supplyCap,
+        uint256 __heartbeat,
+        int24 __minTickDeviation,
+        int24 __maxTickDeviation,
+        uint32 __observationSeconds,
+        uint160 __maxSlippagePercentage
     ) external onlyAdmin {
-        supplyCap = _supplyCap;
-        heartbeat = _heartbeat;
-        maxTickDeviation = _maxTickDeviation;
-        minTickDeviation = _minTickDeviation;
-        observationSeconds = _observationSeconds;
-        maxSlippagePercentage = _maxSlippagePercentage;
+        _supplyCap = __supplyCap;
+        _heartbeat = __heartbeat;
+        _maxTickDeviation = __maxTickDeviation;
+        _minTickDeviation = __minTickDeviation;
+        _observationSeconds = __observationSeconds;
+        _maxSlippagePercentage = __maxSlippagePercentage;
         emit MetaParamsAdjusted(
-            _supplyCap,
-            _heartbeat,
-            _minTickDeviation,
-            _maxTickDeviation,
-            _observationSeconds,
-            _maxSlippagePercentage
+            __supplyCap,
+            __heartbeat,
+            __minTickDeviation,
+            __maxTickDeviation,
+            __observationSeconds,
+            __maxSlippagePercentage
         );
     }
 
@@ -281,7 +293,7 @@ contract MetaPool is
         uint256 reinvest1;
         {
             (uint128 _liquidity, , , , ) = pool.positions(_getPositionID());
-            _withdraw(currentLowerTick, currentUpperTick, _liquidity);
+            _withdraw(_currentLowerTick, _currentUpperTick, _liquidity);
             uint256 balance0 = token0.balanceOf(address(this));
             uint256 balance1 = token1.balanceOf(address(this));
             reinvest0 = paymentToken == address(token0)
@@ -293,28 +305,32 @@ contract MetaPool is
         }
 
         (, int24 _midTick, , , , , ) = pool.slot0();
-        if (block.timestamp < lastRebalanceTimestamp.add(heartbeat)) {
+        if (block.timestamp < _lastRebalanceTimestamp.add(_heartbeat)) {
             require(
-                _midTick > currentUpperTick || _midTick < currentLowerTick,
-                "cannot rebalance until heartbeat (price still in range)"
+                _midTick > _currentUpperTick || _midTick < _currentLowerTick,
+                "cannot rebalance until _heartbeat (price still in range)"
             );
         }
         require(
-            _midTick - minTickDeviation >= newLowerTick &&
-                newLowerTick >= _midTick - maxTickDeviation,
+            _midTick - _minTickDeviation >= newLowerTick &&
+                newLowerTick >= _midTick - _maxTickDeviation,
             "lowerTick out of range"
         );
         require(
-            _midTick + maxTickDeviation >= newUpperTick &&
-                newUpperTick >= _midTick + minTickDeviation,
+            _midTick + _maxTickDeviation >= newUpperTick &&
+                newUpperTick >= _midTick + _minTickDeviation,
             "upperTick out of range"
         );
 
         // If ticks were adjusted
         if (
-            currentLowerTick != newLowerTick || currentUpperTick != newUpperTick
+            _currentLowerTick != newLowerTick ||
+            _currentUpperTick != newUpperTick
         ) {
-            (currentLowerTick, currentUpperTick) = (newLowerTick, newUpperTick);
+            (_currentLowerTick, _currentUpperTick) = (
+                newLowerTick,
+                newUpperTick
+            );
         }
 
         _deposit(
@@ -420,16 +436,16 @@ contract MetaPool is
 
     function _checkSlippage(uint160 swapThresholdPrice) private view {
         uint32[] memory secondsAgo = new uint32[](2);
-        secondsAgo[0] = observationSeconds;
+        secondsAgo[0] = _observationSeconds;
         secondsAgo[1] = 0;
         (int56[] memory tickCumulatives, ) = pool.observe(secondsAgo);
         require(tickCumulatives.length == 2, "unexpected length of tick array");
         int24 avgTick =
             int24(
-                (tickCumulatives[1] - tickCumulatives[0]) / observationSeconds
+                (tickCumulatives[1] - tickCumulatives[0]) / _observationSeconds
             );
         uint160 avgSqrtRatioX96 = TickMath.getSqrtRatioAtTick(avgTick);
-        uint160 maxSlippage = (avgSqrtRatioX96 * maxSlippagePercentage) / 100;
+        uint160 maxSlippage = (avgSqrtRatioX96 * _maxSlippagePercentage) / 100;
         require(
             avgSqrtRatioX96 + maxSlippage >= swapThresholdPrice &&
                 avgSqrtRatioX96 - maxSlippage <= swapThresholdPrice,
@@ -495,10 +511,46 @@ contract MetaPool is
             keccak256(
                 abi.encodePacked(
                     address(this),
-                    currentLowerTick,
-                    currentUpperTick
+                    _currentLowerTick,
+                    _currentUpperTick
                 )
             );
+    }
+
+    function currentLowerTick() external view returns (int24) {
+        return _currentLowerTick;
+    }
+
+    function currentUpperTick() external view returns (int24) {
+        return _currentUpperTick;
+    }
+
+    function lastRebalanceTimestamp() external view returns (uint256) {
+        return _lastRebalanceTimestamp;
+    }
+
+    function supplyCap() external view returns (uint256) {
+        return _supplyCap;
+    }
+
+    function heartbeat() external view returns (uint256) {
+        return _heartbeat;
+    }
+
+    function minTickDeviation() external view returns (int24) {
+        return _minTickDeviation;
+    }
+
+    function maxTickDeviation() external view returns (int24) {
+        return _maxTickDeviation;
+    }
+
+    function observationSeconds() external view returns (uint32) {
+        return _observationSeconds;
+    }
+
+    function maxSlippagePercentage() external view returns (uint160) {
+        return _maxSlippagePercentage;
     }
 
     // CALLBACKS
