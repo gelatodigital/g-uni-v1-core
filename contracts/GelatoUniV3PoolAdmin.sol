@@ -60,7 +60,7 @@ abstract contract GelatoUniV3PoolAdmin is
         uint256 __supplyCap,
         int24 _lowerTick,
         int24 _upperTick,
-        address _owner
+        address _owner_
     ) external initializer {
         require(msg.sender == deployer, "only deployer");
 
@@ -74,7 +74,7 @@ abstract contract GelatoUniV3PoolAdmin is
         _currentLowerTick = _lowerTick;
         _currentUpperTick = _upperTick;
 
-        transferOwnership(_owner);
+        _owner = _owner_;
     }
 
     function updateMetaParams(

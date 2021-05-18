@@ -38,7 +38,7 @@ abstract contract Context {
  * the owner.
  */
 abstract contract OwnableUninitialized is Context {
-    address private _owner;
+    address internal _owner;
 
     event OwnershipTransferred(
         address indexed previousOwner,
