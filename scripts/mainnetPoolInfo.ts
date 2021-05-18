@@ -48,7 +48,10 @@ function getCounterfactualFees(
 }
 
 const op = async (signer: SignerWithAddress) => {
-  const metapool = await ethers.getContractAt("MetaPool", addresses.gUNIV3);
+  const gelatoUniV3Pool = await ethers.getContractAt(
+    "GelatoUniV3Pool",
+    addresses.gUNIV3
+  );
   const abi = (await hre.artifacts.readArtifact("IUniswapV3Pool"))["abi"];
   const pool = new ethers.Contract(
     "0xC2e9F25Be6257c210d7Adf0D4Cd6E3E881ba25f8",
@@ -73,8 +76,8 @@ const op = async (signer: SignerWithAddress) => {
   );
 
   const { tickCumulatives } = await pool.observe([1800, 0]);
-  const positionLower = await metapool.currentLowerTick();
-  const positionUpper = await metapool.currentUpperTick();
+  const positionLower = await gelatoUniV3Pool.currentLowerTick();
+  const positionUpper = await gelatoUniV3Pool.currentUpperTick();
   console.log(
     "ten min avg tick:",
     tickCumulatives[1]
@@ -83,8 +86,8 @@ const op = async (signer: SignerWithAddress) => {
       .toString()
   );
 
-  const { _liquidity, tokensOwed0, tokensOwed1 } = await pool.positions(
-    await metapool.getPositionID()
+  const { liquidity, tokensOwed0, tokensOwed1 } = await pool.positions(
+    await gelatoUniV3Pool.getPositionID()
   );
 
   const {
@@ -96,10 +99,8 @@ const op = async (signer: SignerWithAddress) => {
     feeGrowthOutside1X128: feeGrowthOutsideU1,
   } = await pool.ticks(positionUpper);
 
-  const {
-    feeGrowthInside0LastX128,
-    feeGrowthInside1LastX128,
-  } = await pool.positions(await metapool.getPositionID());
+  const { feeGrowthInside0LastX128, feeGrowthInside1LastX128 } =
+    await pool.positions(await gelatoUniV3Pool.getPositionID());
 
   const fee0 = getCounterfactualFees(
     feeGlobal0,
@@ -107,7 +108,7 @@ const op = async (signer: SignerWithAddress) => {
     feeGrowthOutsideU0,
     feeGrowthInside0LastX128,
     Number(tick),
-    _liquidity,
+    liquidity,
     Number(positionLower),
     Number(positionUpper)
   );
@@ -118,7 +119,7 @@ const op = async (signer: SignerWithAddress) => {
     feeGrowthOutsideU1,
     feeGrowthInside1LastX128,
     Number(tick),
-    _liquidity,
+    liquidity,
     Number(positionLower),
     Number(positionUpper)
   );

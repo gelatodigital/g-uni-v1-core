@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.7.0;
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.4;
 
 import {
     IERC20Minimal

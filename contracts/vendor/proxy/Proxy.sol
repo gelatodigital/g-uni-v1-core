@@ -12,6 +12,7 @@ abstract contract Proxy {
 
     // ///////////////////// EXTERNAL ///////////////////////////////////////////////////////////////////////////
 
+    // prettier-ignore
     receive() external payable virtual {
         revert("ETHER_REJECTED"); // explicit reject by default
     }

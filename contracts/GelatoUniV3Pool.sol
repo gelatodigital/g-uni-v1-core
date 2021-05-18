@@ -1,0 +1,455 @@
+//SPDX-License-Identifier: MIT
+pragma solidity 0.8.4;
+
+import {
+    IUniswapV3MintCallback
+} from "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3MintCallback.sol";
+import {
+    IUniswapV3SwapCallback
+} from "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
+import {GelatoUniV3PoolAdmin} from "./GelatoUniV3PoolAdmin.sol";
+import {
+    IUniswapV3Pool
+} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+import {ERC20MintBurnPermit} from "./ERC20MintBurnPermit.sol";
+import {
+    ReentrancyGuard
+} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import {TickMath} from "./vendor/uniswap/TickMath.sol";
+import {
+    IERC20Minimal
+} from "@uniswap/v3-core/contracts/interfaces/IERC20Minimal.sol";
+import {TransferHelper} from "./libraries/TransferHelper.sol";
+import {LiquidityAmounts} from "./vendor/uniswap/LiquidityAmounts.sol";
+
+// solhint-disable-next-line max-states-count
+contract GelatoUniV3Pool is
+    IUniswapV3MintCallback,
+    IUniswapV3SwapCallback,
+    GelatoUniV3PoolAdmin,
+    ERC20MintBurnPermit,
+    ReentrancyGuard
+{
+    using TransferHelper for address;
+    using TickMath for int24;
+
+    event Minted(
+        address minter,
+        uint256 mintAmount,
+        uint256 amount0In,
+        uint256 amount1In
+    );
+
+    event Burned(
+        address burner,
+        uint256 burnAmount,
+        uint256 amount0Out,
+        uint256 amount1Out
+    );
+
+    constructor(IUniswapV3Pool _pool, address _gelato)
+        GelatoUniV3PoolAdmin(_pool, _gelato)
+    {} // solhint-disable-line no-empty-blocks
+
+    // solhint-disable-next-line function-max-lines, code-complexity
+    function uniswapV3MintCallback(
+        uint256 _amount0Owed,
+        uint256 _amount1Owed,
+        bytes calldata _data
+    ) external override {
+        require(msg.sender == address(pool));
+
+        address sender = abi.decode(_data, (address));
+
+        if (sender == address(this)) {
+            if (_amount0Owed > 0)
+                address(token0).safeTransfer(msg.sender, _amount0Owed);
+            if (_amount1Owed > 0)
+                address(token1).safeTransfer(msg.sender, _amount1Owed);
+        } else {
+            if (_amount0Owed > 0) {
+                address(token0).safeTransferFrom(
+                    sender,
+                    msg.sender,
+                    _amount0Owed
+                );
+            }
+            if (_amount1Owed > 0) {
+                address(token1).safeTransferFrom(
+                    sender,
+                    msg.sender,
+                    _amount1Owed
+                );
+            }
+        }
+    }
+
+    function uniswapV3SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata /*data*/
+    ) external override {
+        require(msg.sender == address(pool));
+
+        if (amount0Delta > 0)
+            address(token0).safeTransfer(msg.sender, uint256(amount0Delta));
+        else if (amount1Delta > 0)
+            address(token1).safeTransfer(msg.sender, uint256(amount1Delta));
+    }
+
+    /// TO DO: why not reentrant protec here??
+    // solhint-disable-next-line function-max-lines
+    function mint(uint128 _newLiquidity) external returns (uint256 mintAmount) {
+        require(_newLiquidity > 0);
+
+        (uint128 _liquidity, , , , ) = pool.positions(_getPositionID());
+
+        uint256 totalSupply = _totalSupply;
+
+        mintAmount = totalSupply == 0
+            ? _newLiquidity
+            : (uint256(_newLiquidity) * _liquidity) / totalSupply;
+
+        require(
+            _supplyCap >= totalSupply + mintAmount,
+            "GelatoUniV3Pool.mint: _supplyCap"
+        );
+
+        // proportionally add to any uninvested capital as well
+        // TO DO: why would token0/token1 be stuck?
+        // why would we take more from user in proportion to their mintRatio?
+        uint256 balance0 = token0.balanceOf(address(this));
+        uint256 extraAmount0;
+
+        // TO DO: what if balance0 is very small. Revert??
+        if (balance0 > 0)
+            extraAmount0 = (uint256(_newLiquidity) * balance0) / _liquidity;
+
+        if (extraAmount0 > 0) {
+            address(token0).safeTransferFrom(
+                msg.sender,
+                address(this),
+                extraAmount0
+            );
+        }
+
+        uint256 balance1 = token1.balanceOf(address(this));
+        uint256 extraAmount1;
+
+        if (balance1 > 0)
+            extraAmount1 = (uint256(_newLiquidity) * balance1) / _liquidity;
+
+        if (extraAmount1 > 0) {
+            address(token1).safeTransferFrom(
+                msg.sender,
+                address(this),
+                extraAmount1
+            );
+        }
+
+        (uint256 amount0, uint256 amount1) =
+            pool.mint(
+                address(this),
+                _currentLowerTick,
+                _currentUpperTick,
+                _newLiquidity,
+                abi.encode(msg.sender)
+            );
+
+        _mint(msg.sender, mintAmount);
+
+        emit Minted(
+            msg.sender,
+            mintAmount,
+            amount0 + extraAmount0,
+            amount1 + extraAmount1
+        );
+    }
+
+    // solhint-disable-next-line function-max-lines
+    function burn(uint256 _burnAmount)
+        external
+        nonReentrant
+        returns (
+            uint256 amount0,
+            uint256 amount1,
+            uint128 liquidityBurned
+        )
+    {
+        require(_burnAmount > 0);
+
+        uint256 totalSupply = _totalSupply;
+
+        (uint128 liquidity, , , , ) = pool.positions(_getPositionID());
+
+        // TO DO: _burn alters _totalSupply => check whether safe to use
+        // previous value (totalSupply)
+        _burn(msg.sender, _burnAmount);
+
+        uint256 _liquidityBurned_ = (_burnAmount * liquidity) / totalSupply;
+        require(_liquidityBurned_ < type(uint128).max);
+        liquidityBurned = uint128(_liquidityBurned_);
+
+        (amount0, amount1) = pool.burn(
+            _currentLowerTick,
+            _currentUpperTick,
+            liquidityBurned
+        );
+
+        // Withdraw tokens to user
+        pool.collect(
+            msg.sender,
+            _currentLowerTick,
+            _currentUpperTick,
+            uint128(amount0), // cast can't overflow
+            uint128(amount1) // cast can't overflow
+        );
+
+        uint256 extraAmount0 =
+            (_burnAmount * token0.balanceOf(address(this))) / totalSupply;
+        if (extraAmount0 > 0)
+            address(token0).safeTransfer(msg.sender, extraAmount0);
+
+        uint256 extraAmount1 =
+            (uint256(_burnAmount) * token1.balanceOf(address(this))) /
+                totalSupply;
+        if (extraAmount1 > 0) {
+            TransferHelper.safeTransfer(
+                address(token1),
+                msg.sender,
+                extraAmount1
+            );
+        }
+
+        amount0 += extraAmount0;
+        amount1 += extraAmount1;
+
+        emit Burned(msg.sender, _burnAmount, amount0, amount1);
+    }
+
+    function rebalance(
+        int24 _newLowerTick,
+        int24 _newUpperTick,
+        uint160 _swapThresholdPrice,
+        uint256 _swapAmountBPS,
+        uint256 _feeAmount,
+        address _paymentToken
+    ) external gelatofy(_feeAmount, _paymentToken) {
+        _adjustCurrentPool(
+            _newLowerTick,
+            _newUpperTick,
+            _swapThresholdPrice,
+            _swapAmountBPS,
+            _feeAmount,
+            _paymentToken
+        );
+
+        // solhint-disable-next-line not-rely-on-time
+        _lastRebalanceTimestamp = block.timestamp;
+
+        emit TicksAdjusted(_newLowerTick, _newUpperTick);
+    }
+
+    // solhint-disable-next-line function-max-lines
+    function _adjustCurrentPool(
+        int24 _newLowerTick,
+        int24 _newUpperTick,
+        uint160 _swapThresholdPrice,
+        uint256 _swapAmountBPS,
+        uint256 _feeAmount,
+        address _paymentToken
+    ) private {
+        _checkSlippage(_swapThresholdPrice);
+
+        uint256 reinvest0;
+        uint256 reinvest1;
+        {
+            (uint128 _liquidity, , , , ) = pool.positions(_getPositionID());
+
+            _withdraw(_currentLowerTick, _currentUpperTick, _liquidity);
+
+            uint256 balance0 = token0.balanceOf(address(this));
+            uint256 balance1 = token1.balanceOf(address(this));
+
+            reinvest0 = _paymentToken == address(token0)
+                ? balance0 - _feeAmount
+                : balance0;
+
+            reinvest1 = _paymentToken == address(token1)
+                ? balance1 - _feeAmount
+                : balance1;
+        }
+
+        (, int24 midTick, , , , , ) = pool.slot0();
+
+        // solhint-disable-next-line not-rely-on-time
+        if (block.timestamp < _lastRebalanceTimestamp + _heartbeat) {
+            require(
+                midTick > _currentUpperTick || midTick < _currentLowerTick,
+                "GelatoUniV3Pool._adjustCurrentPool: price still in range and no heartbeat"
+            );
+        }
+
+        require(
+            _newLowerTick <= midTick - _minTickDeviation &&
+                _newLowerTick >= midTick - _maxTickDeviation,
+            "GelatoUniV3Pool._adjustCurrentPool: lowerTick out of range"
+        );
+
+        require(
+            _newUpperTick <= midTick + _maxTickDeviation &&
+                _newUpperTick >= midTick + _minTickDeviation,
+            "GelatoUniV3Pool._adjustCurrentPool: upperTick out of range"
+        );
+
+        if (_currentLowerTick != _newLowerTick)
+            _currentLowerTick = _newLowerTick;
+        if (_currentUpperTick != _newUpperTick)
+            _currentUpperTick = _newUpperTick;
+
+        _deposit(
+            _newLowerTick,
+            _newUpperTick,
+            reinvest0,
+            reinvest1,
+            _swapThresholdPrice,
+            _swapAmountBPS
+        );
+    }
+
+    function _withdraw(
+        int24 _lowerTick,
+        int24 _upperTick,
+        uint128 _liquidity
+    ) private {
+        pool.burn(_lowerTick, _upperTick, _liquidity);
+        pool.collect(
+            address(this),
+            _lowerTick,
+            _upperTick,
+            type(uint128).max,
+            type(uint128).max
+        );
+    }
+
+    // solhint-disable-next-line function-max-lines
+    function _deposit(
+        int24 _lowerTick,
+        int24 _upperTick,
+        uint256 _amount0,
+        uint256 _amount1,
+        uint160 _swapThresholdPrice,
+        uint256 _swapAmountBPS
+    ) private {
+        (uint160 sqrtRatioX96, , , , , , ) = pool.slot0();
+
+        if (_amount0 > 0 && _amount1 > 0) {
+            // First, deposit as much as we can
+            uint128 baseLiquidity =
+                LiquidityAmounts.getLiquidityForAmounts(
+                    sqrtRatioX96,
+                    _lowerTick.getSqrtRatioAtTick(),
+                    _upperTick.getSqrtRatioAtTick(),
+                    _amount0,
+                    _amount1
+                );
+
+            (uint256 amountDeposited0, uint256 amountDeposited1) =
+                pool.mint(
+                    address(this),
+                    _lowerTick,
+                    _upperTick,
+                    baseLiquidity,
+                    abi.encode(address(this))
+                );
+
+            _amount0 -= amountDeposited0;
+            _amount1 -= amountDeposited1;
+        }
+
+        if (_amount0 > 0 || _amount1 > 0) {
+            // We need to swap the leftover so were balanced, then deposit it
+            bool zeroForOne = _amount0 > _amount1;
+            int256 swapAmount =
+                int256(
+                    ((zeroForOne ? _amount0 : _amount1) * _swapAmountBPS) /
+                        10000
+                );
+            (_amount0, _amount1) = _swapAndDeposit(
+                _lowerTick,
+                _upperTick,
+                _amount0,
+                _amount1,
+                swapAmount,
+                _swapThresholdPrice,
+                zeroForOne
+            );
+        }
+    }
+
+    function _swapAndDeposit(
+        int24 _lowerTick,
+        int24 _upperTick,
+        uint256 _amount0,
+        uint256 _amount1,
+        int256 _swapAmount,
+        uint160 _swapThresholdPrice,
+        bool _zeroForOne
+    ) private returns (uint256 finalAmount0, uint256 finalAmount1) {
+        (int256 amount0Delta, int256 amount1Delta) =
+            pool.swap(
+                address(this),
+                _zeroForOne,
+                _swapAmount,
+                _swapThresholdPrice,
+                abi.encode(address(this))
+            );
+
+        finalAmount0 = uint256(int256(_amount0) - amount0Delta);
+        finalAmount1 = uint256(int256(_amount1) - amount1Delta);
+
+        // Add liquidity a second time
+        (uint160 sqrtRatioX96, , , , , , ) = pool.slot0();
+        uint128 liquidityAfterSwap =
+            LiquidityAmounts.getLiquidityForAmounts(
+                sqrtRatioX96,
+                TickMath.getSqrtRatioAtTick(_lowerTick),
+                TickMath.getSqrtRatioAtTick(_upperTick),
+                finalAmount0,
+                finalAmount1
+            );
+
+        pool.mint(
+            address(this),
+            _lowerTick,
+            _upperTick,
+            liquidityAfterSwap,
+            abi.encode(address(this))
+        );
+    }
+
+    function _checkSlippage(uint160 _swapThresholdPrice) private view {
+        uint32[] memory secondsAgo = new uint32[](2);
+        secondsAgo[0] = _observationSeconds;
+        secondsAgo[1] = 0;
+
+        (int56[] memory tickCumulatives, ) = pool.observe(secondsAgo);
+
+        require(tickCumulatives.length == 2, "unexpected length of tick array");
+
+        int24 avgTick =
+            int24(
+                (tickCumulatives[1] - tickCumulatives[0]) /
+                    int56(uint56(_observationSeconds))
+            );
+        uint160 avgSqrtRatioX96 = avgTick.getSqrtRatioAtTick();
+
+        uint160 maxSlippage = (avgSqrtRatioX96 * _maxSlippagePercentage) / 100;
+
+        require(
+            _swapThresholdPrice <= avgSqrtRatioX96 + maxSlippage &&
+                _swapThresholdPrice >= avgSqrtRatioX96 - maxSlippage,
+            "slippage price is out of acceptable price range"
+        );
+    }
+}

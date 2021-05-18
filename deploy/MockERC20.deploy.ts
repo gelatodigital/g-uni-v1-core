@@ -19,11 +19,8 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
 
   await deploy("MockERC20", {
     from: deployer,
-    args: [],
   });
 };
-
-export default func;
 
 func.skip = async (hre: HardhatRuntimeEnvironment) => {
   const shouldSkip =
@@ -34,3 +31,5 @@ func.skip = async (hre: HardhatRuntimeEnvironment) => {
 };
 
 func.tags = ["MockERC20"];
+
+export default func;
