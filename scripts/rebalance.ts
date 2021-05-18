@@ -23,7 +23,7 @@ const op = async (signer: SignerWithAddress) => {
     addresses.gUNIV3,
     signer
   );
-  const poolAddr = await metapool.currentPool();
+  const poolAddr = await metapool.pool();
   const pool = await ethers.getContractAt("IUniswapV3Pool", poolAddr, signer);
   const { sqrtPriceX96, tick } = await pool.slot0();
   let tickLow = tick - 500;
@@ -35,15 +35,15 @@ const op = async (signer: SignerWithAddress) => {
     tickHigh = tickHigh + 1;
   }
 
-  const slippagePrice = sqrtPriceX96.add(
+  const slippagePrice = sqrtPriceX96.sub(
     sqrtPriceX96.mul(ethers.BigNumber.from("4")).div("100")
   );
 
   await metapool.rebalance(
     tickLow.toString(),
     tickHigh.toString(),
-    "3000",
     slippagePrice, // if swapping ETH for DAI
+    5000,
     ethers.utils.parseEther("0.001"),
     addresses.WETH,
     { gasLimit: 6000000 }

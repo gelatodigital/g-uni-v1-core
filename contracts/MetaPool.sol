@@ -352,27 +352,28 @@ contract MetaPool is
         uint256 swapAmountBPS
     ) private {
         (uint160 sqrtRatioX96, , , , , , ) = pool.slot0();
+        if (amount0 > 0 && amount1 > 0) {
+            // First, deposit as much as we can
+            uint128 baseLiquidity =
+                LiquidityAmounts.getLiquidityForAmounts(
+                    sqrtRatioX96,
+                    TickMath.getSqrtRatioAtTick(lowerTick),
+                    TickMath.getSqrtRatioAtTick(upperTick),
+                    amount0,
+                    amount1
+                );
+            (uint256 amountDeposited0, uint256 amountDeposited1) =
+                pool.mint(
+                    address(this),
+                    lowerTick,
+                    upperTick,
+                    baseLiquidity,
+                    abi.encode(address(this))
+                );
 
-        // First, deposit as much as we can
-        uint128 baseLiquidity =
-            LiquidityAmounts.getLiquidityForAmounts(
-                sqrtRatioX96,
-                TickMath.getSqrtRatioAtTick(lowerTick),
-                TickMath.getSqrtRatioAtTick(upperTick),
-                amount0,
-                amount1
-            );
-        (uint256 amountDeposited0, uint256 amountDeposited1) =
-            pool.mint(
-                address(this),
-                lowerTick,
-                upperTick,
-                baseLiquidity,
-                abi.encode(address(this))
-            );
-
-        amount0 -= amountDeposited0;
-        amount1 -= amountDeposited1;
+            amount0 -= amountDeposited0;
+            amount1 -= amountDeposited1;
+        }
 
         // We need to swap the leftover so were balanced, then deposit it
         if (amount0 > 0 || amount1 > 0) {
