@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.4;
 
 import "../abstract/GUNIV3.sol";

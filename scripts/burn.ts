@@ -10,7 +10,7 @@ const op = async (signer: SignerWithAddress) => {
     addresses.GUNIV3,
     signer
   );
-  await gelatoUniV3Pool.burn(ethers.utils.parseEther("10"), {
+  await gelatoUniV3Pool.burn(ethers.utils.parseEther("5"), {
     gasLimit: 6000000,
   });
 };

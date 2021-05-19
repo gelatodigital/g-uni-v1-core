@@ -18,14 +18,14 @@ export const getAddresses = (network: string): Addresses => {
         Swapper: "",
         GelatoAdmin: "0x163407FDA1a93941358c1bfda39a868599553b6D",
         WethDaiV3Pool: "0xC2e9F25Be6257c210d7Adf0D4Cd6E3E881ba25f8",
-        WETH: "",
-        DAI: "",
+        WETH: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+        DAI: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
       };
     case "ropsten":
       return {
-        Gelato: "0xD90fC89e89E3E5b75256b5aA617f887C583b29a2", //"0xCc4CcD69D31F9FfDBD3BFfDe49c6aA886DaB98d9",
+        Gelato: "0xCc4CcD69D31F9FfDBD3BFfDe49c6aA886DaB98d9",
         WethDaiV3Pool: "0x25D0Ea8FAc3Ce2313c6a478DA92e0ccf95213B1A",
-        GUNIV3: "0x179bb59188b8891a559e8b873cfA644fE4ABeb69",
+        GUNIV3: "0xf5F2eB02fa8033593d9B461433674f488FF19B3f",
         Swapper: "0x2E185412E2aF7DC9Ed28359Ea3193EBAd7E929C6",
         GelatoAdmin: "0xD90fC89e89E3E5b75256b5aA617f887C583b29a2",
         WETH: "0xc778417E063141139Fce010982780140Aa0cD5Ab",
