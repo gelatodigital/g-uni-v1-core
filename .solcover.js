@@ -1,11 +1,11 @@
 module.exports = {
   skipFiles: [
     "__mocks__",
+    "abstract/GUNIV3.sol",
+    "abstract/OwnableUninitialized.sol",
     "interfaces",
     "libraries",
     "vendor",
-    "ERC20MintBurnPermit.sol",
-    "OwnableUninitialized.sol",
     "node_modules",
   ],
 };

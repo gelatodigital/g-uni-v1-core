@@ -1,8 +1,10 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.4;
 
-import {TransferHelper} from "./libraries/TransferHelper.sol";
+import {TransferHelper} from "../libraries/TransferHelper.sol";
 
+/// @dev DO NOT ADD STATE VARIABLES - APPEND THEM TO GelatoUniV3PoolStorage
+/// @dev DO NOT ADD BASE CONTRACTS WITH STATE VARS - APPEND THEM TO GelatoUniV3PoolStorage
 abstract contract Gelatofied {
     using TransferHelper for address;
 

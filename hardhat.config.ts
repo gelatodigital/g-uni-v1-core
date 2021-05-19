@@ -1,16 +1,13 @@
 import { HardhatUserConfig } from "hardhat/config";
 
 // PLUGINS
-import "@nomiclabs/hardhat-waffle";
+import "@nomiclabs/hardhat-ethers";
 import "@nomiclabs/hardhat-etherscan";
+import "@nomiclabs/hardhat-waffle";
 import "@typechain/hardhat";
 import "hardhat-deploy";
-import "hardhat-deploy-ethers";
 import "solidity-coverage";
 import "./lib/uniswap";
-
-// TASKS
-// import "./hardhat/tasks";
 
 // Process Env Variables
 import * as dotenv from "dotenv";

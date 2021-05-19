@@ -15,9 +15,6 @@ jobs: # a collection of steps
       - run:
           name: yarn install
           command: yarn install --frozen-lockfile
-      - run:
-          name: yarn add hardhat-deploy-ethers
-          command: yarn add -D hardhat-deploy-ethers
       - save_cache: # special step to save the dependency cache
           name: Save Yarn Package Cache
           key: yarn-packages-{{ checksum "yarn.lock" }}
