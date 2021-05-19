@@ -1,9 +1,10 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.4;
 
 import {GUNIV3} from "./GUNIV3.sol";
 import {Gelatofied} from "./Gelatofied.sol";
 import {OwnableUninitialized} from "./OwnableUninitialized.sol";
+import {UniswapV3Helpers} from "./UniswapV3Helpers.sol";
 import {
     Initializable
 } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
@@ -23,7 +24,8 @@ abstract contract GelatoUniV3PoolStorage is
     Gelatofied,
     OwnableUninitialized,
     Initializable,
-    ReentrancyGuard
+    ReentrancyGuard,
+    UniswapV3Helpers
     // APPEND ADDITIONAL BASE WITH STATE VARS HERE
     // XXXX DONT MODIFY ORDERING XXXX
 {
@@ -44,6 +46,7 @@ abstract contract GelatoUniV3PoolStorage is
     int24 internal _currentLowerTick;
     int24 internal _currentUpperTick;
     uint256 internal _lastRebalanceTimestamp;
+    uint256 internal _lastMintOrBurnTimestamp;
 
     // APPPEND ADDITIONAL STATE VARS BELOW:
 
@@ -78,7 +81,6 @@ abstract contract GelatoUniV3PoolStorage is
             msg.sender == deployer,
             "GelatoUniV3PoolStorage.initialize: only deployer"
         );
-
         _supplyCap = __supplyCap;
         _heartbeat = 1 days; // default: one day
         _minTickDeviation = 120; // default: ~1% price difference up and down
@@ -150,6 +152,10 @@ abstract contract GelatoUniV3PoolStorage is
 
     function lastRebalanceTimestamp() external view returns (uint256) {
         return _lastRebalanceTimestamp;
+    }
+
+    function lastMintOrBurnTimestamp() external view returns (uint256) {
+        return _lastMintOrBurnTimestamp;
     }
 
     function getPositionID() external view returns (bytes32 positionID) {

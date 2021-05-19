@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.4;
 
 import {
@@ -83,9 +83,12 @@ contract GelatoUniV3Pool is
             token1.safeTransfer(msg.sender, uint256(amount1Delta));
     }
 
-    /// TO DO: why not reentrant protec here??
     // solhint-disable-next-line function-max-lines
-    function mint(uint128 _newLiquidity) external returns (uint256 mintAmount) {
+    function mint(uint128 _newLiquidity)
+        external
+        nonReentrant
+        returns (uint256 mintAmount)
+    {
         require(_newLiquidity > 0);
 
         (uint128 _liquidity, , , , ) = pool.positions(_getPositionID());
@@ -137,6 +140,8 @@ contract GelatoUniV3Pool is
             amount0 + extraAmount0,
             amount1 + extraAmount1
         );
+        // solhint-disable-next-line not-rely-on-time
+        _lastMintOrBurnTimestamp = block.timestamp;
     }
 
     // solhint-disable-next-line function-max-lines
@@ -155,8 +160,6 @@ contract GelatoUniV3Pool is
 
         (uint128 liquidity, , , , ) = pool.positions(_getPositionID());
 
-        // TO DO: _burn alters _totalSupply => check whether safe to use
-        // previous value (totalSupply)
         _burn(msg.sender, _burnAmount);
 
         uint256 _liquidityBurned_ = (_burnAmount * liquidity) / totalSupply;
@@ -193,6 +196,8 @@ contract GelatoUniV3Pool is
         amount1 += extraAmount1;
 
         emit Burned(msg.sender, _burnAmount, amount0, amount1);
+        // solhint-disable-next-line not-rely-on-time
+        _lastMintOrBurnTimestamp = block.timestamp;
     }
 
     function rebalance(
