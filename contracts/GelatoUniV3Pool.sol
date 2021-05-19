@@ -43,7 +43,7 @@ contract GelatoUniV3Pool is
         uint256 amount1Out
     );
 
-    event TicksAdjusted(int24 newLowerTick, int24 newUpperTick);
+    event Rebalance(int24 newLowerTick, int24 newUpperTick);
 
     constructor(IUniswapV3Pool _pool, address payable _gelato)
         GelatoUniV3PoolStorage(_pool, _gelato)
@@ -215,7 +215,7 @@ contract GelatoUniV3Pool is
         // solhint-disable-next-line not-rely-on-time
         _lastRebalanceTimestamp = block.timestamp;
 
-        emit TicksAdjusted(_newLowerTick, _newUpperTick);
+        emit Rebalance(_newLowerTick, _newUpperTick);
     }
 
     // solhint-disable-next-line function-max-lines
