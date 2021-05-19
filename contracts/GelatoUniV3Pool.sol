@@ -114,12 +114,9 @@ contract GelatoUniV3Pool is
         );
 
         // proportionally add to any uninvested capital as well
-        // TO DO: why would token0/token1 be stuck?
-        // why would we take more from user in proportion to their mintRatio?
         uint256 balance0 = token0.balanceOf(address(this));
         uint256 extraAmount0;
 
-        // TO DO: what if balance0 is very small. Revert??
         if (balance0 > 0)
             extraAmount0 = (uint256(_newLiquidity) * balance0) / _liquidity;
 
