@@ -10,9 +10,7 @@ import {
 import {
     IUniswapV3Pool
 } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
-import {
-    IERC20Minimal
-} from "@uniswap/v3-core/contracts/interfaces/IERC20Minimal.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {
     ReentrancyGuard
 } from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
@@ -32,8 +30,8 @@ abstract contract GelatoUniV3PoolStorage is
     address public immutable deployer;
 
     IUniswapV3Pool public immutable pool;
-    IERC20Minimal public immutable token0;
-    IERC20Minimal public immutable token1;
+    IERC20 public immutable token0;
+    IERC20 public immutable token1;
 
     // XXXXXXXX DO NOT MODIFY ORDERING XXXXXXXX
     uint256 internal _supplyCap;
@@ -60,12 +58,14 @@ abstract contract GelatoUniV3PoolStorage is
         uint160 maxSlippagePercentage
     );
 
-    constructor(IUniswapV3Pool _pool, address _gelato) Gelatofied(_gelato) {
+    constructor(IUniswapV3Pool _pool, address payable _gelato)
+        Gelatofied(_gelato)
+    {
         deployer = msg.sender;
 
         pool = _pool;
-        token0 = IERC20Minimal(_pool.token0());
-        token1 = IERC20Minimal(_pool.token1());
+        token0 = IERC20(_pool.token0());
+        token1 = IERC20(_pool.token1());
     }
 
     function initialize(

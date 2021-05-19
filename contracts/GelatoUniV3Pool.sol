@@ -13,9 +13,9 @@ import {
 } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {TickMath} from "./vendor/uniswap/TickMath.sol";
 import {
-    IERC20Minimal
-} from "@uniswap/v3-core/contracts/interfaces/IERC20Minimal.sol";
-import {TransferHelper} from "./libraries/TransferHelper.sol";
+    IERC20,
+    SafeERC20
+} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {LiquidityAmounts} from "./vendor/uniswap/LiquidityAmounts.sol";
 
 /// @dev DO NOT ADD STATE VARIABLES - APPEND THEM TO GelatoUniV3PoolStorage
@@ -26,7 +26,7 @@ contract GelatoUniV3Pool is
     GelatoUniV3PoolStorage
     // XXXX DO NOT ADD FURHTER BASES WITH STATE VARS HERE XXXX
 {
-    using TransferHelper for address;
+    using SafeERC20 for IERC20;
     using TickMath for int24;
 
     event Minted(
@@ -45,7 +45,7 @@ contract GelatoUniV3Pool is
 
     event TicksAdjusted(int24 newLowerTick, int24 newUpperTick);
 
-    constructor(IUniswapV3Pool _pool, address _gelato)
+    constructor(IUniswapV3Pool _pool, address payable _gelato)
         GelatoUniV3PoolStorage(_pool, _gelato)
     {} // solhint-disable-line no-empty-blocks
 
@@ -60,25 +60,13 @@ contract GelatoUniV3Pool is
         address sender = abi.decode(_data, (address));
 
         if (sender == address(this)) {
-            if (_amount0Owed > 0)
-                address(token0).safeTransfer(msg.sender, _amount0Owed);
-            if (_amount1Owed > 0)
-                address(token1).safeTransfer(msg.sender, _amount1Owed);
+            if (_amount0Owed > 0) token0.safeTransfer(msg.sender, _amount0Owed);
+            if (_amount1Owed > 0) token1.safeTransfer(msg.sender, _amount1Owed);
         } else {
-            if (_amount0Owed > 0) {
-                address(token0).safeTransferFrom(
-                    sender,
-                    msg.sender,
-                    _amount0Owed
-                );
-            }
-            if (_amount1Owed > 0) {
-                address(token1).safeTransferFrom(
-                    sender,
-                    msg.sender,
-                    _amount1Owed
-                );
-            }
+            if (_amount0Owed > 0)
+                token0.safeTransferFrom(sender, msg.sender, _amount0Owed);
+            if (_amount1Owed > 0)
+                token1.safeTransferFrom(sender, msg.sender, _amount1Owed);
         }
     }
 
@@ -90,9 +78,9 @@ contract GelatoUniV3Pool is
         require(msg.sender == address(pool));
 
         if (amount0Delta > 0)
-            address(token0).safeTransfer(msg.sender, uint256(amount0Delta));
+            token0.safeTransfer(msg.sender, uint256(amount0Delta));
         else if (amount1Delta > 0)
-            address(token1).safeTransfer(msg.sender, uint256(amount1Delta));
+            token1.safeTransfer(msg.sender, uint256(amount1Delta));
     }
 
     /// TO DO: why not reentrant protec here??
@@ -120,13 +108,8 @@ contract GelatoUniV3Pool is
         if (balance0 > 0)
             extraAmount0 = (uint256(_newLiquidity) * balance0) / _liquidity;
 
-        if (extraAmount0 > 0) {
-            address(token0).safeTransferFrom(
-                msg.sender,
-                address(this),
-                extraAmount0
-            );
-        }
+        if (extraAmount0 > 0)
+            token0.safeTransferFrom(msg.sender, address(this), extraAmount0);
 
         uint256 balance1 = token1.balanceOf(address(this));
         uint256 extraAmount1;
@@ -134,13 +117,8 @@ contract GelatoUniV3Pool is
         if (balance1 > 0)
             extraAmount1 = (uint256(_newLiquidity) * balance1) / _liquidity;
 
-        if (extraAmount1 > 0) {
-            address(token1).safeTransferFrom(
-                msg.sender,
-                address(this),
-                extraAmount1
-            );
-        }
+        if (extraAmount1 > 0)
+            token1.safeTransferFrom(msg.sender, address(this), extraAmount1);
 
         (uint256 amount0, uint256 amount1) =
             pool.mint(
@@ -202,19 +180,14 @@ contract GelatoUniV3Pool is
 
         uint256 extraAmount0 =
             (_burnAmount * token0.balanceOf(address(this))) / totalSupply;
-        if (extraAmount0 > 0)
-            address(token0).safeTransfer(msg.sender, extraAmount0);
+
+        if (extraAmount0 > 0) token0.safeTransfer(msg.sender, extraAmount0);
 
         uint256 extraAmount1 =
             (uint256(_burnAmount) * token1.balanceOf(address(this))) /
                 totalSupply;
-        if (extraAmount1 > 0) {
-            TransferHelper.safeTransfer(
-                address(token1),
-                msg.sender,
-                extraAmount1
-            );
-        }
+
+        if (extraAmount1 > 0) token1.safeTransfer(msg.sender, extraAmount1);
 
         amount0 += extraAmount0;
         amount1 += extraAmount1;
