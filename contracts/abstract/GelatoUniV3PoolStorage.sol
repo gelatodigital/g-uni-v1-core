@@ -1,6 +1,7 @@
-//SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.4;
 
+import {GUNIV3} from "./GUNIV3.sol";
 import {Gelatofied} from "./Gelatofied.sol";
 import {OwnableUninitialized} from "./OwnableUninitialized.sol";
 import {
@@ -12,13 +13,18 @@ import {
 import {
     IERC20Minimal
 } from "@uniswap/v3-core/contracts/interfaces/IERC20Minimal.sol";
-import {LiquidityAmounts} from "./vendor/uniswap/LiquidityAmounts.sol";
+import {
+    ReentrancyGuard
+} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
+/// @dev Single Global upgradeable state var storage base: APPEND ONLY
 // solhint-disable-next-line max-states-count
-abstract contract GelatoUniV3PoolAdmin is
+abstract contract GelatoUniV3PoolStorage is
+    GUNIV3,
     Gelatofied,
     OwnableUninitialized,
-    Initializable
+    Initializable,
+    ReentrancyGuard
 {
     address public immutable deployer;
 
@@ -26,6 +32,7 @@ abstract contract GelatoUniV3PoolAdmin is
     IERC20Minimal public immutable token0;
     IERC20Minimal public immutable token1;
 
+    // XXXXXXXX DO NOT MODIFY ORDERING XXXXXXXX
     uint256 internal _supplyCap;
     uint256 internal _heartbeat;
     int24 internal _minTickDeviation;
@@ -37,16 +44,9 @@ abstract contract GelatoUniV3PoolAdmin is
     int24 internal _currentUpperTick;
     uint256 internal _lastRebalanceTimestamp;
 
-    event MetaParamsAdjusted(
-        uint256 supplyCap,
-        uint256 heartbeat,
-        int24 minTickDeviation,
-        int24 maxTickDeviation,
-        uint32 observationSeconds,
-        uint160 maxSlippagePercentage
-    );
+    // APPPEND ADDITIONAL STATE VARS BELOW:
 
-    event TicksAdjusted(int24 newLowerTick, int24 newUpperTick);
+    // XXXXXXXX DO NOT MODIFY ORDERING XXXXXXXX
 
     constructor(IUniswapV3Pool _pool, address _gelato) Gelatofied(_gelato) {
         deployer = msg.sender;
@@ -62,7 +62,10 @@ abstract contract GelatoUniV3PoolAdmin is
         int24 _upperTick,
         address _owner_
     ) external initializer {
-        require(msg.sender == deployer, "only deployer");
+        require(
+            msg.sender == deployer,
+            "GelatoUniV3PoolStorage.initialize: only deployer"
+        );
 
         _supplyCap = __supplyCap;
         _heartbeat = 1 days; // default: one day
@@ -75,30 +78,6 @@ abstract contract GelatoUniV3PoolAdmin is
         _currentUpperTick = _upperTick;
 
         _owner = _owner_;
-    }
-
-    function updateMetaParams(
-        uint256 __supplyCap,
-        uint256 __heartbeat,
-        int24 __minTickDeviation,
-        int24 __maxTickDeviation,
-        uint32 __observationSeconds,
-        uint160 __maxSlippagePercentage
-    ) external onlyOwner {
-        _supplyCap = __supplyCap;
-        _heartbeat = __heartbeat;
-        _minTickDeviation = __minTickDeviation;
-        _maxTickDeviation = __maxTickDeviation;
-        _observationSeconds = __observationSeconds;
-        _maxSlippagePercentage = __maxSlippagePercentage;
-        emit MetaParamsAdjusted(
-            __supplyCap,
-            __heartbeat,
-            __minTickDeviation,
-            __maxTickDeviation,
-            __observationSeconds,
-            __maxSlippagePercentage
-        );
     }
 
     function supplyCap() external view returns (uint256) {
@@ -139,38 +118,6 @@ abstract contract GelatoUniV3PoolAdmin is
 
     function getPositionID() external view returns (bytes32 positionID) {
         return _getPositionID();
-    }
-
-    function getLiquidityForAmounts(
-        uint160 sqrtRatioX96,
-        uint160 sqrtRatioAX96,
-        uint160 sqrtRatioBX96,
-        uint256 amount0,
-        uint256 amount1
-    ) external pure returns (uint128 liquidity) {
-        return
-            LiquidityAmounts.getLiquidityForAmounts(
-                sqrtRatioX96,
-                sqrtRatioAX96,
-                sqrtRatioBX96,
-                amount0,
-                amount1
-            );
-    }
-
-    function getAmountsForLiquidity(
-        uint160 sqrtRatioX96,
-        uint160 sqrtRatioAX96,
-        uint160 sqrtRatioBX96,
-        uint128 liquidity
-    ) external pure returns (uint256 amount0, uint256 amount1) {
-        return
-            LiquidityAmounts.getAmountsForLiquidity(
-                sqrtRatioX96,
-                sqrtRatioAX96,
-                sqrtRatioBX96,
-                liquidity
-            );
     }
 
     function _getPositionID() internal view returns (bytes32 positionID) {

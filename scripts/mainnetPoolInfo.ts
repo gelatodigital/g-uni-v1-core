@@ -50,7 +50,7 @@ function getCounterfactualFees(
 const op = async (signer: SignerWithAddress) => {
   const gelatoUniV3Pool = await ethers.getContractAt(
     "GelatoUniV3Pool",
-    addresses.gUNIV3
+    addresses.GUNIV3
   );
   const abi = (await hre.artifacts.readArtifact("IUniswapV3Pool"))["abi"];
   const pool = new ethers.Contract(
@@ -125,12 +125,12 @@ const op = async (signer: SignerWithAddress) => {
   );
 
   const { amount0, amount1 } = await pool.callStatic.collect(
-    addresses.gUNIV3,
+    addresses.GUNIV3,
     positionLower,
     positionUpper,
     ethers.utils.parseEther("100000000"),
     ethers.utils.parseEther("100000000"),
-    { from: addresses.gUNIV3 }
+    { from: addresses.GUNIV3 }
   );
 
   console.log("unclaimed DAI fees:", ethers.utils.formatEther(fee0.toString()));

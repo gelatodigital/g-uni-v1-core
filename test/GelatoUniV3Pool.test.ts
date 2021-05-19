@@ -2,7 +2,7 @@ import { expect } from "chai";
 import { BigNumber } from "bignumber.js";
 import { ethers, network } from "hardhat";
 import {
-  ERC20MintBurnPermit,
+  GUNIV3,
   IUniswapV3Factory,
   IUniswapV3Pool,
   SwapTest,
@@ -34,8 +34,8 @@ describe("GelatoUniV3Pools", function () {
   let uniswapFactory: IUniswapV3Factory;
   let uniswapPool: IUniswapV3Pool;
 
-  let token0: ERC20MintBurnPermit;
-  let token1: ERC20MintBurnPermit;
+  let token0: GUNIV3;
+  let token1: GUNIV3;
   let user0: SignerWithAddress;
   let user1: SignerWithAddress;
   let user2: SignerWithAddress;
@@ -62,8 +62,8 @@ describe("GelatoUniV3Pools", function () {
     )) as IUniswapV3Factory;
 
     const mockERC20Factory = await ethers.getContractFactory("MockERC20");
-    token0 = (await mockERC20Factory.deploy()) as ERC20MintBurnPermit;
-    token1 = (await mockERC20Factory.deploy()) as ERC20MintBurnPermit;
+    token0 = (await mockERC20Factory.deploy()) as GUNIV3;
+    token1 = (await mockERC20Factory.deploy()) as GUNIV3;
 
     await token0.approve(
       swapTest.address,

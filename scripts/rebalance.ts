@@ -22,7 +22,7 @@ const encodePriceSqrt = (reserve1: string, reserve0: string) => {
 const op = async (signer: SignerWithAddress) => {
   const gelatoUniV3Pool = await ethers.getContractAt(
     "GelatoUniV3Pool",
-    addresses.gUNIV3,
+    addresses.GUNIV3,
     signer
   );
   const poolAddr = await gelatoUniV3Pool.pool();

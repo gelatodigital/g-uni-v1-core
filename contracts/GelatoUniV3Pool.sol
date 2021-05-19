@@ -1,4 +1,4 @@
-//SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.4;
 
 import {
@@ -7,14 +7,11 @@ import {
 import {
     IUniswapV3SwapCallback
 } from "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
-import {GelatoUniV3PoolAdmin} from "./GelatoUniV3PoolAdmin.sol";
+import {GelatoUniV3PoolAdmin} from "./abstract/GelatoUniV3PoolAdmin.sol";
+import {GelatoUniV3PoolStorage} from "./abstract/GelatoUniV3PoolStorage.sol";
 import {
     IUniswapV3Pool
 } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
-import {ERC20MintBurnPermit} from "./ERC20MintBurnPermit.sol";
-import {
-    ReentrancyGuard
-} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {TickMath} from "./vendor/uniswap/TickMath.sol";
 import {
     IERC20Minimal
@@ -22,13 +19,11 @@ import {
 import {TransferHelper} from "./libraries/TransferHelper.sol";
 import {LiquidityAmounts} from "./vendor/uniswap/LiquidityAmounts.sol";
 
-// solhint-disable-next-line max-states-count
+/// @dev DO NOT ADD STATE VARIABLES - APPEND THEM TO GelatoUniV3PoolStorage
 contract GelatoUniV3Pool is
     IUniswapV3MintCallback,
     IUniswapV3SwapCallback,
-    GelatoUniV3PoolAdmin,
-    ERC20MintBurnPermit,
-    ReentrancyGuard
+    GelatoUniV3PoolAdmin
 {
     using TransferHelper for address;
     using TickMath for int24;
@@ -47,8 +42,10 @@ contract GelatoUniV3Pool is
         uint256 amount1Out
     );
 
+    event TicksAdjusted(int24 newLowerTick, int24 newUpperTick);
+
     constructor(IUniswapV3Pool _pool, address _gelato)
-        GelatoUniV3PoolAdmin(_pool, _gelato)
+        GelatoUniV3PoolStorage(_pool, _gelato)
     {} // solhint-disable-line no-empty-blocks
 
     // solhint-disable-next-line function-max-lines, code-complexity
@@ -104,7 +101,7 @@ contract GelatoUniV3Pool is
 
         (uint128 _liquidity, , , , ) = pool.positions(_getPositionID());
 
-        uint256 totalSupply = _totalSupply;
+        uint256 totalSupply = totalSupply();
 
         mintAmount = totalSupply == 0
             ? _newLiquidity
@@ -178,7 +175,7 @@ contract GelatoUniV3Pool is
     {
         require(_burnAmount > 0);
 
-        uint256 totalSupply = _totalSupply;
+        uint256 totalSupply = totalSupply();
 
         (uint128 liquidity, , , , ) = pool.positions(_getPositionID());
 
