@@ -31,6 +31,8 @@ function position(address: string, lowerTick: number, upperTick: number) {
 }
 
 describe("GelatoUniV3Pools", function () {
+  this.timeout(0);
+
   let uniswapFactory: IUniswapV3Factory;
   let uniswapPool: IUniswapV3Pool;
 
