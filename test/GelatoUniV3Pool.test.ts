@@ -99,6 +99,8 @@ describe("GelatoUniV3Pools", function () {
     )) as IUniswapV3Pool;
     await uniswapPool.initialize(encodePriceSqrt("1", "1"));
 
+    await uniswapPool.increaseObservationCardinalityNext("5");
+
     const gelatoUniV3PoolFactory = await ethers.getContractFactory(
       "GelatoUniV3Pool"
     );
