@@ -232,8 +232,6 @@ contract GelatoUniV3Pool is
         uint256 _feeAmount,
         address _paymentToken
     ) private {
-        _checkSlippage(_swapThresholdPrice);
-
         uint256 reinvest0;
         uint256 reinvest1;
         {
@@ -343,6 +341,7 @@ contract GelatoUniV3Pool is
         if (_amount0 > 0 || _amount1 > 0) {
             // We need to swap the leftover so were balanced, then deposit it
             bool zeroForOne = _amount0 > _amount1;
+            _checkSlippage(_swapThresholdPrice, zeroForOne);
             int256 swapAmount =
                 int256(
                     ((zeroForOne ? _amount0 : _amount1) * _swapAmountBPS) /
@@ -401,7 +400,10 @@ contract GelatoUniV3Pool is
         );
     }
 
-    function _checkSlippage(uint160 _swapThresholdPrice) private view {
+    function _checkSlippage(uint160 _swapThresholdPrice, bool zeroForOne)
+        private
+        view
+    {
         uint32[] memory secondsAgo = new uint32[](2);
         secondsAgo[0] = _observationSeconds;
         secondsAgo[1] = 0;
@@ -418,11 +420,18 @@ contract GelatoUniV3Pool is
         uint160 avgSqrtRatioX96 = avgTick.getSqrtRatioAtTick();
 
         uint160 maxSlippage = (avgSqrtRatioX96 * _maxSlippagePercentage) / 100;
-
-        require(
-            _swapThresholdPrice <= avgSqrtRatioX96 + maxSlippage &&
-                _swapThresholdPrice >= avgSqrtRatioX96 - maxSlippage,
-            "slippage price is out of acceptable price range"
-        );
+        if (zeroForOne) {
+            require(
+                _swapThresholdPrice < avgSqrtRatioX96 &&
+                    _swapThresholdPrice >= avgSqrtRatioX96 - maxSlippage,
+                "slippage price is out of acceptable range"
+            );
+        } else {
+            require(
+                _swapThresholdPrice > avgSqrtRatioX96 &&
+                    _swapThresholdPrice <= avgSqrtRatioX96 + maxSlippage,
+                "slippage price is out of acceptable range"
+            );
+        }
     }
 }
