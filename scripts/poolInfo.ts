@@ -116,6 +116,10 @@ const op = async (signer: SignerWithAddress) => {
     Number(positionUpper)
   );
 
+  const lower = await gelatoUniV3Pool.currentLowerTick();
+  const upper = await gelatoUniV3Pool.currentUpperTick();
+  console.log("lower tick:", lower.toString());
+  console.log("upper tick:", upper.toString());
   console.log(
     "unclaimed DAI fees:",
     ethers.utils.formatEther(fee0.add(tokensOwed0).toString())
