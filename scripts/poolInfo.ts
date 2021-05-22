@@ -54,39 +54,31 @@ const op = async (signer: SignerWithAddress) => {
   );
   const abi = (await hre.artifacts.readArtifact("IUniswapV3Pool"))["abi"];
   const pool = new ethers.Contract(
-    "0xC2e9F25Be6257c210d7Adf0D4Cd6E3E881ba25f8",
+    addresses.WethDaiV3Pool,
     abi,
     signer.provider
   );
 
-  const {
-    tick,
-    sqrtPriceX96,
-    observationCardinalityNext,
-    observationCardinality,
-  } = await pool.slot0();
+  const { tick, sqrtPriceX96, observationCardinality } = await pool.slot0();
   const feeGlobal0 = await pool.feeGrowthGlobal0X128();
   const feeGlobal1 = await pool.feeGrowthGlobal1X128();
   console.log("current tick:", tick.toString());
   console.log("current sqrtPrice:", sqrtPriceX96.toString());
-  console.log(
-    "cardinality:",
-    observationCardinality.toString(),
-    observationCardinalityNext.toString()
-  );
+  console.log("cardinality:", observationCardinality.toString());
 
   const { tickCumulatives } = await pool.observe([1800, 0]);
   const positionLower = await gelatoUniV3Pool.currentLowerTick();
   const positionUpper = await gelatoUniV3Pool.currentUpperTick();
   console.log(
-    "ten min avg tick:",
+    "thirty min avg tick:",
     tickCumulatives[1]
       .sub(tickCumulatives[0])
       .div(ethers.BigNumber.from("1800"))
       .toString()
   );
 
-  const { liquidity, tokensOwed0, tokensOwed1 } = await pool.positions(
+  // eslint-disable-next-line
+  const { _liquidity, tokensOwed0, tokensOwed1 } = await pool.positions(
     await gelatoUniV3Pool.getPositionID()
   );
 
@@ -108,7 +100,7 @@ const op = async (signer: SignerWithAddress) => {
     feeGrowthOutsideU0,
     feeGrowthInside0LastX128,
     Number(tick),
-    liquidity,
+    _liquidity,
     Number(positionLower),
     Number(positionUpper)
   );
@@ -119,30 +111,19 @@ const op = async (signer: SignerWithAddress) => {
     feeGrowthOutsideU1,
     feeGrowthInside1LastX128,
     Number(tick),
-    liquidity,
+    _liquidity,
     Number(positionLower),
     Number(positionUpper)
   );
 
-  const { amount0, amount1 } = await pool.callStatic.collect(
-    addresses.GUNIV3,
-    positionLower,
-    positionUpper,
-    ethers.utils.parseEther("100000000"),
-    ethers.utils.parseEther("100000000"),
-    { from: addresses.GUNIV3 }
+  console.log(
+    "unclaimed DAI fees:",
+    ethers.utils.formatEther(fee0.add(tokensOwed0).toString())
   );
-
-  console.log("unclaimed DAI fees:", ethers.utils.formatEther(fee0.toString()));
   console.log(
     "unclaimed WETH fees:",
-    ethers.utils.formatEther(fee1.toString())
+    ethers.utils.formatEther(fee1.add(tokensOwed1).toString())
   );
-
-  console.log(ethers.utils.formatEther(amount0));
-  console.log(ethers.utils.formatEther(amount1));
-  console.log(ethers.utils.formatEther(tokensOwed0));
-  console.log(ethers.utils.formatEther(tokensOwed1));
 };
 
 (async () => {

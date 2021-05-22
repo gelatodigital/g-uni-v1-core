@@ -19,12 +19,7 @@ const encodePriceSqrt = (reserve1: string, reserve0: string) => {
 };
 
 const op = async (signer: SignerWithAddress) => {
-  const gelatoUniV3Pool = await ethers.getContractAt(
-    "GelatoUniV3Pool",
-    addresses.GUNIV3,
-    signer
-  );
-  const uniPoolAddress = await gelatoUniV3Pool.currentPool();
+  const uniPoolAddress = addresses.WethDaiV3Pool;
   const swapper = await ethers.getContractAt(
     "SwapTest",
     addresses.Swapper,
@@ -50,7 +45,7 @@ const op = async (signer: SignerWithAddress) => {
   const tx = await swapper.getSwapResult(
     uniPoolAddress,
     false,
-    ethers.utils.parseEther("0.6"),
+    ethers.utils.parseEther("1"),
     encodePriceSqrt("10000", "1"),
     { gasLimit: 6000000 }
   );
