@@ -14,7 +14,7 @@ export const getAddresses = (network: string): Addresses => {
     case "mainnet":
       return {
         Gelato: "0x3CACa7b48D0573D793d3b0279b5F0029180E83b6",
-        GUNIV3: "",
+        GUNIV3: "0x810F9C4613f466F02cC7Da671a3ba9a7e8c33c69",
         Swapper: "",
         GelatoAdmin: "0x163407FDA1a93941358c1bfda39a868599553b6D",
         WethDaiV3Pool: "0xC2e9F25Be6257c210d7Adf0D4Cd6E3E881ba25f8",

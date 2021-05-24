@@ -15,17 +15,20 @@ const op = async (signer: SignerWithAddress) => {
     addresses.WETH,
     signer
   );
-  // const dai = await ethers.getContractAt(
-  //   ["function approve(address,uint256) external"],
-  //   addresses.DAI,
-  //   signer
-  // );
+  const dai = await ethers.getContractAt(
+    ["function approve(address,uint256) external"],
+    addresses.DAI,
+    signer
+  );
 
   // @dev change these amounts to your needs
-  await weth.approve(gelatoUniV3Pool.address, ethers.utils.parseEther("10"));
-  //await dai.approve(gelatoUniV3Pool.address, ethers.utils.parseEther("200"));
-  await gelatoUniV3Pool.mint(ethers.utils.parseEther("1495"), {
-    gasLimit: 400000,
+  await weth.approve(gelatoUniV3Pool.address, ethers.utils.parseEther("10000"));
+  await dai.approve(
+    gelatoUniV3Pool.address,
+    ethers.utils.parseEther("2000000")
+  );
+  await gelatoUniV3Pool.mint(ethers.utils.parseEther("1"), {
+    gasLimit: 500000,
   });
 };
 
