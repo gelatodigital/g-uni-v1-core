@@ -84,10 +84,14 @@ contract GelatoUniV3Pool is
     }
 
     // solhint-disable-next-line function-max-lines
-    function mint(uint128 _newLiquidity)
+    function mint(uint128 _newLiquidity, address minter)
         external
         nonReentrant
-        returns (uint256 mintAmount)
+        returns (
+            uint256 amount0,
+            uint256 amount1,
+            uint256 mintAmount
+        )
     {
         require(_newLiquidity > 0);
 
@@ -97,7 +101,7 @@ contract GelatoUniV3Pool is
 
         mintAmount = totalSupply == 0
             ? _newLiquidity
-            : (uint256(_newLiquidity) * _liquidity) / totalSupply;
+            : (uint256(_newLiquidity) * totalSupply) / _liquidity;
 
         require(
             _supplyCap >= totalSupply + mintAmount,
@@ -112,7 +116,7 @@ contract GelatoUniV3Pool is
             extraAmount0 = (uint256(_newLiquidity) * balance0) / _liquidity;
 
         if (extraAmount0 > 0)
-            token0.safeTransferFrom(msg.sender, address(this), extraAmount0);
+            token0.safeTransferFrom(minter, address(this), extraAmount0);
 
         uint256 balance1 = token1.balanceOf(address(this));
         uint256 extraAmount1;
@@ -121,31 +125,26 @@ contract GelatoUniV3Pool is
             extraAmount1 = (uint256(_newLiquidity) * balance1) / _liquidity;
 
         if (extraAmount1 > 0)
-            token1.safeTransferFrom(msg.sender, address(this), extraAmount1);
+            token1.safeTransferFrom(minter, address(this), extraAmount1);
 
-        (uint256 amount0, uint256 amount1) =
-            pool.mint(
-                address(this),
-                _currentLowerTick,
-                _currentUpperTick,
-                _newLiquidity,
-                abi.encode(msg.sender)
-            );
-
-        _mint(msg.sender, mintAmount);
-
-        emit Minted(
-            msg.sender,
-            mintAmount,
-            amount0 + extraAmount0,
-            amount1 + extraAmount1
+        (amount0, amount1) = pool.mint(
+            address(this),
+            _currentLowerTick,
+            _currentUpperTick,
+            _newLiquidity,
+            abi.encode(minter)
         );
+
+        _mint(minter, mintAmount);
+        amount0 += extraAmount0;
+        amount1 += extraAmount1;
+        emit Minted(minter, mintAmount, amount0, amount1);
         // solhint-disable-next-line not-rely-on-time
         _lastMintOrBurnTimestamp = block.timestamp;
     }
 
     // solhint-disable-next-line function-max-lines
-    function burn(uint256 _burnAmount)
+    function burn(uint256 _burnAmount, address burner)
         external
         nonReentrant
         returns (
@@ -160,7 +159,7 @@ contract GelatoUniV3Pool is
 
         (uint128 liquidity, , , , ) = pool.positions(_getPositionID());
 
-        _burn(msg.sender, _burnAmount);
+        _burn(burner, _burnAmount);
 
         uint256 _liquidityBurned_ = (_burnAmount * liquidity) / totalSupply;
         require(_liquidityBurned_ < type(uint128).max);
@@ -174,7 +173,7 @@ contract GelatoUniV3Pool is
 
         // Withdraw tokens to user
         pool.collect(
-            msg.sender,
+            burner,
             _currentLowerTick,
             _currentUpperTick,
             uint128(amount0), // cast can't overflow
@@ -184,18 +183,18 @@ contract GelatoUniV3Pool is
         uint256 extraAmount0 =
             (_burnAmount * token0.balanceOf(address(this))) / totalSupply;
 
-        if (extraAmount0 > 0) token0.safeTransfer(msg.sender, extraAmount0);
+        if (extraAmount0 > 0) token0.safeTransfer(burner, extraAmount0);
 
         uint256 extraAmount1 =
             (uint256(_burnAmount) * token1.balanceOf(address(this))) /
                 totalSupply;
 
-        if (extraAmount1 > 0) token1.safeTransfer(msg.sender, extraAmount1);
+        if (extraAmount1 > 0) token1.safeTransfer(burner, extraAmount1);
 
         amount0 += extraAmount0;
         amount1 += extraAmount1;
 
-        emit Burned(msg.sender, _burnAmount, amount0, amount1);
+        emit Burned(burner, _burnAmount, amount0, amount1);
         // solhint-disable-next-line not-rely-on-time
         _lastMintOrBurnTimestamp = block.timestamp;
     }

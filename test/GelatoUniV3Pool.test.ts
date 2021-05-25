@@ -7,6 +7,7 @@ import {
   IUniswapV3Pool,
   SwapTest,
   GelatoUniV3Pool,
+  GelatoUniV3Router,
 } from "../typechain";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signer-with-address";
 
@@ -44,6 +45,7 @@ describe("GelatoUniV3Pools", function () {
   let swapTest: SwapTest;
   let gelatoUniV3Pool: GelatoUniV3Pool;
   let gelato: SignerWithAddress;
+  let gelatoRouter: GelatoUniV3Router;
   let uniswapPoolAddress: string;
 
   before(async function () {
@@ -115,6 +117,13 @@ describe("GelatoUniV3Pools", function () {
       887220,
       await user0.getAddress()
     );
+
+    const gelatoUniV3RouterFactory = await ethers.getContractFactory(
+      "GelatoUniV3Router"
+    );
+
+    gelatoRouter =
+      (await gelatoUniV3RouterFactory.deploy()) as GelatoUniV3Router;
   });
 
   describe("GelatoUniV3Pool", function () {
@@ -129,31 +138,55 @@ describe("GelatoUniV3Pools", function () {
       );
     });
 
-    describe("deposits", function () {
+    describe("deposits through router contract", function () {
       it("Should deposit funds into a gelatoUniV3Pool", async function () {
-        await gelatoUniV3Pool.mint("1000");
+        await gelatoRouter.mintFromMaxAmounts(
+          gelatoUniV3Pool.address,
+          ethers.utils.parseEther("1"),
+          ethers.utils.parseEther("1")
+        );
 
-        expect(await token0.balanceOf(uniswapPool.address)).to.gt(0);
-        expect(await token1.balanceOf(uniswapPool.address)).to.gt(0);
+        expect(await token0.balanceOf(uniswapPool.address)).to.be.gt(0);
+        expect(await token1.balanceOf(uniswapPool.address)).to.be.gt(0);
         const [liquidity] = await uniswapPool.positions(
           position(gelatoUniV3Pool.address, -887220, 887220)
         );
-        expect(liquidity).to.equal("1000");
-        expect(await gelatoUniV3Pool.totalSupply()).to.equal("1000");
-        expect(
-          await gelatoUniV3Pool.balanceOf(await user0.getAddress())
-        ).to.equal("1000");
+        expect(liquidity).to.equal(ethers.utils.parseEther("1"));
+        const supply = await gelatoUniV3Pool.totalSupply();
+        expect(supply).to.be.gt(0);
 
-        await gelatoUniV3Pool.mint("500");
+        // TEST SECOND USER MINT/BURN amounts
+        const preBalance0 = await token0.balanceOf(await user0.getAddress());
+        const preBalance1 = await token1.balanceOf(await user0.getAddress());
+        await gelatoRouter.mintFromMaxAmounts(
+          gelatoUniV3Pool.address,
+          ethers.utils.parseEther("0.5"),
+          ethers.utils.parseEther("0.5")
+        );
 
         const [liquidity2] = await uniswapPool.positions(
           position(gelatoUniV3Pool.address, -887220, 887220)
         );
-        expect(liquidity2).to.equal("1500");
-        expect(await gelatoUniV3Pool.totalSupply()).to.equal("1500");
-        expect(
-          await gelatoUniV3Pool.balanceOf(await user0.getAddress())
-        ).to.equal("1500");
+        expect(liquidity2).to.be.gt(liquidity);
+        expect(await gelatoUniV3Pool.totalSupply()).to.equal(
+          ethers.utils.parseEther("1.5")
+        );
+
+        await gelatoUniV3Pool.burn(
+          ethers.utils.parseEther("0.5"),
+          await user0.getAddress()
+        );
+        const postBalance0 = await token0.balanceOf(await user0.getAddress());
+        const postBalance1 = await token1.balanceOf(await user0.getAddress());
+
+        expect(preBalance0.sub(postBalance0)).to.be.lte(
+          ethers.BigNumber.from("1")
+        );
+        expect(preBalance0.sub(postBalance0)).to.be.gte(ethers.constants.Zero);
+        expect(preBalance1.sub(postBalance1)).to.be.lte(
+          ethers.BigNumber.from("1")
+        );
+        expect(preBalance1.sub(postBalance1)).to.be.gte(ethers.constants.Zero);
       });
     });
 
@@ -207,22 +240,29 @@ describe("GelatoUniV3Pools", function () {
 
     describe("with liquidity deposited", function () {
       beforeEach(async function () {
-        await gelatoUniV3Pool.mint(1000000);
+        await gelatoRouter.mintFromMaxAmounts(
+          gelatoUniV3Pool.address,
+          ethers.utils.parseEther("1"),
+          ethers.utils.parseEther("1")
+        );
       });
 
       describe("withdrawal", function () {
         it("should burn LP tokens and withdraw funds", async function () {
-          await gelatoUniV3Pool.burn(6000);
+          await gelatoUniV3Pool.burn(
+            ethers.utils.parseEther("0.5"),
+            await user0.getAddress()
+          );
           const [liquidity2] = await uniswapPool.positions(
             position(gelatoUniV3Pool.address, -887220, 887220)
           );
-          expect(liquidity2).to.equal((1000000 - 6000).toString());
+          expect(liquidity2).to.equal(ethers.utils.parseEther("0.5"));
           expect(await gelatoUniV3Pool.totalSupply()).to.equal(
-            (1000000 - 6000).toString()
+            ethers.utils.parseEther("0.5")
           );
           expect(
             await gelatoUniV3Pool.balanceOf(await user0.getAddress())
-          ).to.equal((1000000 - 6000).toString());
+          ).to.equal(ethers.utils.parseEther("0.5"));
         });
       });
 
@@ -390,7 +430,10 @@ describe("GelatoUniV3Pools", function () {
               contractBalance1.toString()
             );
 
-            await gelatoUniV3Pool.burn(await gelatoUniV3Pool.totalSupply());
+            await gelatoUniV3Pool.burn(
+              await gelatoUniV3Pool.totalSupply(),
+              await user0.getAddress()
+            );
             contractBalance0 = await token0.balanceOf(gelatoUniV3Pool.address);
             contractBalance1 = await token1.balanceOf(gelatoUniV3Pool.address);
             console.log(
@@ -400,20 +443,22 @@ describe("GelatoUniV3Pools", function () {
           });
 
           it("mint/burn without trading should result in same amounts", async function () {
+            const user1Address = await user1.getAddress();
+            const user2Address = await user2.getAddress();
             await token0.transfer(
-              await user2.getAddress(),
+              user2Address,
               ethers.utils.parseEther("1000")
             );
             await token1.transfer(
-              await user2.getAddress(),
+              user2Address,
               ethers.utils.parseEther("1000")
             );
             await token0.transfer(
-              await user1.getAddress(),
+              user1Address,
               ethers.utils.parseEther("1000")
             );
             await token1.transfer(
-              await user1.getAddress(),
+              user1Address,
               ethers.utils.parseEther("1000")
             );
             await token0
@@ -424,7 +469,7 @@ describe("GelatoUniV3Pools", function () {
               .approve(gelatoUniV3Pool.address, ethers.constants.MaxUint256);
             await gelatoUniV3Pool
               .connect(user1)
-              .mint(ethers.utils.parseEther("9"));
+              .mint(ethers.utils.parseEther("9"), user1Address);
             await token0
               .connect(user2)
               .approve(gelatoUniV3Pool.address, ethers.constants.MaxUint256);
@@ -433,14 +478,10 @@ describe("GelatoUniV3Pools", function () {
               .approve(gelatoUniV3Pool.address, ethers.constants.MaxUint256);
             await gelatoUniV3Pool
               .connect(user2)
-              .mint(ethers.utils.parseEther("10"));
+              .mint(ethers.utils.parseEther("10"), user2Address);
 
-            const balanceAfterMint0 = await token0.balanceOf(
-              await user2.getAddress()
-            );
-            const balanceAfterMint1 = await token0.balanceOf(
-              await user2.getAddress()
-            );
+            const balanceAfterMint0 = await token0.balanceOf(user2Address);
+            const balanceAfterMint1 = await token0.balanceOf(user2Address);
 
             expect(
               ethers.utils.parseEther("1000").sub(balanceAfterMint0.toString())
@@ -451,19 +492,24 @@ describe("GelatoUniV3Pools", function () {
 
             await gelatoUniV3Pool
               .connect(user2)
-              .burn(await gelatoUniV3Pool.balanceOf(await user2.getAddress()));
-            const balanceAfterBurn0 = await token0.balanceOf(
-              await user2.getAddress()
-            );
-            const balanceAfterBurn1 = await token0.balanceOf(
-              await user2.getAddress()
-            );
+              .burn(
+                await gelatoUniV3Pool.balanceOf(user2Address),
+                user2Address
+              );
+            const balanceAfterBurn0 = await token0.balanceOf(user2Address);
+            const balanceAfterBurn1 = await token0.balanceOf(user2Address);
             expect(
               ethers.utils.parseEther("1000").sub(balanceAfterBurn1.toString())
             ).to.be.lte(ethers.BigNumber.from("1"));
             expect(
               ethers.utils.parseEther("1000").sub(balanceAfterBurn0.toString())
             ).to.be.lte(ethers.BigNumber.from("1"));
+            expect(
+              ethers.utils.parseEther("1000").sub(balanceAfterBurn1.toString())
+            ).to.be.gte(ethers.constants.Zero);
+            expect(
+              ethers.utils.parseEther("1000").sub(balanceAfterBurn0.toString())
+            ).to.be.gte(ethers.constants.Zero);
           });
         });
       });
@@ -528,11 +574,13 @@ describe("GelatoUniV3Pools", function () {
           await token1.transfer(await user1.getAddress(), "10000000000");
           await token0
             .connect(user1)
-            .approve(gelatoUniV3Pool.address, "10000000000");
+            .approve(gelatoUniV3Pool.address, "10000000000000");
           await token1
             .connect(user1)
-            .approve(gelatoUniV3Pool.address, "10000000000");
-          await gelatoUniV3Pool.connect(user1).mint(1000000);
+            .approve(gelatoUniV3Pool.address, "10000000000000");
+          await gelatoUniV3Pool
+            .connect(user1)
+            .mint(1000000, await user1.getAddress());
 
           contractBalance0 = await token0.balanceOf(gelatoUniV3Pool.address);
           contractBalance1 = await token1.balanceOf(gelatoUniV3Pool.address);
@@ -567,16 +615,59 @@ describe("GelatoUniV3Pools", function () {
           contractBalance1 = await token1.balanceOf(gelatoUniV3Pool.address);
           console.log(contractBalance0.toString(), contractBalance1.toString());
 
+          // TEST MINT/BURN should return same amount
+          await token0.transfer(await user2.getAddress(), "100000000000");
+          await token1.transfer(await user2.getAddress(), "100000000000");
+          await token0
+            .connect(user2)
+            .approve(gelatoUniV3Pool.address, "1000000000000000");
+          await token1
+            .connect(user2)
+            .approve(gelatoUniV3Pool.address, "1000000000000000");
+          const preBalance0 = await token0.balanceOf(await user2.getAddress());
+          const preBalance1 = await token1.balanceOf(await user2.getAddress());
+          await gelatoUniV3Pool
+            .connect(user2)
+            .mint("90000000002", await user2.getAddress());
+          await gelatoUniV3Pool
+            .connect(user2)
+            .burn(
+              await gelatoUniV3Pool.balanceOf(await user2.getAddress()),
+              await user2.getAddress()
+            );
+          const postBalance0 = await token0.balanceOf(await user2.getAddress());
+          const postBalance1 = await token1.balanceOf(await user2.getAddress());
+
+          expect(preBalance0.sub(postBalance0)).to.be.lte(
+            ethers.BigNumber.from("2")
+          );
+          expect(preBalance0.sub(postBalance0)).to.be.gte(
+            ethers.constants.Zero
+          );
+          expect(preBalance1.sub(postBalance1)).to.be.lte(
+            ethers.BigNumber.from("2")
+          );
+          expect(preBalance1.sub(postBalance1)).to.be.gte(
+            ethers.constants.Zero
+          );
+
           await gelatoUniV3Pool
             .connect(user1)
-            .burn(await gelatoUniV3Pool.balanceOf(await user1.getAddress()));
+            .burn(
+              await gelatoUniV3Pool.balanceOf(await user1.getAddress()),
+              await user1.getAddress()
+            );
 
           contractBalance0 = await token0.balanceOf(gelatoUniV3Pool.address);
           contractBalance1 = await token1.balanceOf(gelatoUniV3Pool.address);
           console.log(contractBalance0.toString(), contractBalance1.toString());
+
           await gelatoUniV3Pool
             .connect(user0)
-            .burn(await gelatoUniV3Pool.totalSupply());
+            .burn(
+              await gelatoUniV3Pool.totalSupply(),
+              await user0.getAddress()
+            );
 
           contractBalance0 = await token0.balanceOf(gelatoUniV3Pool.address);
           contractBalance1 = await token1.balanceOf(gelatoUniV3Pool.address);
