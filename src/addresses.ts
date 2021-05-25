@@ -7,6 +7,7 @@ interface Addresses {
   WethDaiV3Pool: string;
   WETH: string;
   DAI: string;
+  GUNIRouter: string;
 }
 
 export const getAddresses = (network: string): Addresses => {
@@ -20,6 +21,7 @@ export const getAddresses = (network: string): Addresses => {
         WethDaiV3Pool: "0xC2e9F25Be6257c210d7Adf0D4Cd6E3E881ba25f8",
         WETH: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
         DAI: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+        GUNIRouter: "0x5dacf7B13Bea52DF7ba5222983b1FFE146a1e82b",
       };
     case "ropsten":
       return {
@@ -30,6 +32,7 @@ export const getAddresses = (network: string): Addresses => {
         GelatoAdmin: "0xD90fC89e89E3E5b75256b5aA617f887C583b29a2",
         WETH: "0xc778417E063141139Fce010982780140Aa0cD5Ab",
         DAI: "0xaD6D458402F60fD3Bd25163575031ACDce07538D",
+        GUNIRouter: "",
       };
     default:
       throw new Error(`No addresses for Network: ${network}`);
