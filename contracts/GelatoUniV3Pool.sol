@@ -18,6 +18,8 @@ import {
 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {LiquidityAmounts} from "./vendor/uniswap/LiquidityAmounts.sol";
 
+//import "hardhat/console.sol";
+
 /// @dev DO NOT ADD STATE VARIABLES - APPEND THEM TO GelatoUniV3PoolStorage
 /// @dev DO NOT ADD BASE CONTRACTS WITH STATE VARS - APPEND THEM TO GelatoUniV3PoolStorage
 contract GelatoUniV3Pool is
@@ -84,7 +86,7 @@ contract GelatoUniV3Pool is
     }
 
     // solhint-disable-next-line function-max-lines
-    function mint(uint128 _newLiquidity, address minter)
+    function mint(uint256 amount0Max, uint256 amount1Max)
         external
         nonReentrant
         returns (
@@ -93,9 +95,10 @@ contract GelatoUniV3Pool is
             uint256 mintAmount
         )
     {
-        require(_newLiquidity > 0);
-
         (uint128 _liquidity, , , , ) = pool.positions(_getPositionID());
+        uint128 _newLiquidity =
+            _getNewLiquidity(amount0Max, amount1Max, _liquidity);
+        require(_newLiquidity > 0);
 
         uint256 totalSupply = totalSupply();
 
@@ -116,7 +119,7 @@ contract GelatoUniV3Pool is
             extraAmount0 = (uint256(_newLiquidity) * balance0) / _liquidity;
 
         if (extraAmount0 > 0)
-            token0.safeTransferFrom(minter, address(this), extraAmount0);
+            token0.safeTransferFrom(msg.sender, address(this), extraAmount0);
 
         uint256 balance1 = token1.balanceOf(address(this));
         uint256 extraAmount1;
@@ -125,26 +128,26 @@ contract GelatoUniV3Pool is
             extraAmount1 = (uint256(_newLiquidity) * balance1) / _liquidity;
 
         if (extraAmount1 > 0)
-            token1.safeTransferFrom(minter, address(this), extraAmount1);
+            token1.safeTransferFrom(msg.sender, address(this), extraAmount1);
 
         (amount0, amount1) = pool.mint(
             address(this),
             _currentLowerTick,
             _currentUpperTick,
             _newLiquidity,
-            abi.encode(minter)
+            abi.encode(msg.sender)
         );
 
-        _mint(minter, mintAmount);
+        _mint(msg.sender, mintAmount);
         amount0 += extraAmount0;
         amount1 += extraAmount1;
-        emit Minted(minter, mintAmount, amount0, amount1);
+        emit Minted(msg.sender, mintAmount, amount0, amount1);
         // solhint-disable-next-line not-rely-on-time
         _lastMintOrBurnTimestamp = block.timestamp;
     }
 
     // solhint-disable-next-line function-max-lines
-    function burn(uint256 _burnAmount, address burner)
+    function burn(uint256 _burnAmount)
         external
         nonReentrant
         returns (
@@ -159,7 +162,7 @@ contract GelatoUniV3Pool is
 
         (uint128 liquidity, , , , ) = pool.positions(_getPositionID());
 
-        _burn(burner, _burnAmount);
+        _burn(msg.sender, _burnAmount);
 
         uint256 _liquidityBurned_ = (_burnAmount * liquidity) / totalSupply;
         require(_liquidityBurned_ < type(uint128).max);
@@ -173,7 +176,7 @@ contract GelatoUniV3Pool is
 
         // Withdraw tokens to user
         pool.collect(
-            burner,
+            msg.sender,
             _currentLowerTick,
             _currentUpperTick,
             uint128(amount0), // cast can't overflow
@@ -183,18 +186,18 @@ contract GelatoUniV3Pool is
         uint256 extraAmount0 =
             (_burnAmount * token0.balanceOf(address(this))) / totalSupply;
 
-        if (extraAmount0 > 0) token0.safeTransfer(burner, extraAmount0);
+        if (extraAmount0 > 0) token0.safeTransfer(msg.sender, extraAmount0);
 
         uint256 extraAmount1 =
             (uint256(_burnAmount) * token1.balanceOf(address(this))) /
                 totalSupply;
 
-        if (extraAmount1 > 0) token1.safeTransfer(burner, extraAmount1);
+        if (extraAmount1 > 0) token1.safeTransfer(msg.sender, extraAmount1);
 
         amount0 += extraAmount0;
         amount1 += extraAmount1;
 
-        emit Burned(burner, _burnAmount, amount0, amount1);
+        emit Burned(msg.sender, _burnAmount, amount0, amount1);
         // solhint-disable-next-line not-rely-on-time
         _lastMintOrBurnTimestamp = block.timestamp;
     }
@@ -397,6 +400,89 @@ contract GelatoUniV3Pool is
             liquidityAfterSwap,
             abi.encode(address(this))
         );
+    }
+
+    function getNewLiquidityFromAmounts(uint256 amount0Max, uint256 amount1Max)
+        external
+        view
+        returns (uint128)
+    {
+        (uint128 liquidity, , , , ) = pool.positions(_getPositionID());
+        return _getNewLiquidity(amount0Max, amount1Max, liquidity);
+    }
+
+    function _getNewLiquidity(
+        uint256 amount0Max,
+        uint256 amount1Max,
+        uint128 liquidity
+    ) internal view returns (uint128) {
+        (uint160 sqrtRatioX96, , , , , , ) = pool.slot0();
+        uint160 sqrtLower = _currentLowerTick.getSqrtRatioAtTick();
+        uint160 sqrtUpper = _currentUpperTick.getSqrtRatioAtTick();
+        return
+            _computeNewLiquidity(
+                amount0Max,
+                amount1Max,
+                liquidity,
+                sqrtRatioX96,
+                sqrtLower,
+                sqrtUpper
+            );
+    }
+
+    function _computeNewLiquidity(
+        uint256 amount0Max,
+        uint256 amount1Max,
+        uint128 liquidity,
+        uint160 sqrtRatioX96,
+        uint160 sqrtLower,
+        uint160 sqrtUpper
+    ) internal view returns (uint128) {
+        uint128 newLiquidity =
+            LiquidityAmounts.getLiquidityForAmounts(
+                sqrtRatioX96,
+                sqrtLower,
+                sqrtUpper,
+                amount0Max,
+                amount1Max
+            );
+        (uint256 amount0Final, uint256 amount1Final) =
+            _getAdjustedInputAmounts(
+                newLiquidity,
+                liquidity,
+                amount0Max,
+                amount1Max
+            );
+        if (amount0Final != amount0Max || amount1Final != amount1Max) {
+            newLiquidity = LiquidityAmounts.getLiquidityForAmounts(
+                sqrtRatioX96,
+                sqrtLower,
+                sqrtUpper,
+                amount0Final,
+                amount1Final
+            );
+        }
+
+        return newLiquidity;
+    }
+
+    function _getAdjustedInputAmounts(
+        uint128 newLiquidity,
+        uint128 liquidity,
+        uint256 amount0Max,
+        uint256 amount1Max
+    ) internal view returns (uint256 amount0, uint256 amount1) {
+        if (liquidity == 0) {
+            return (amount0Max, amount1Max);
+        }
+        uint256 balance0 = token0.balanceOf(address(this));
+        uint256 balance1 = token1.balanceOf(address(this));
+        uint256 proportionBPS =
+            (uint256(newLiquidity) * 10000) / uint256(liquidity);
+        uint256 amount0Additional = (balance0 * proportionBPS) / 10000;
+        uint256 amount1Additional = (balance1 * proportionBPS) / 10000;
+        amount0 = amount0Max - amount0Additional;
+        amount1 = amount1Max - amount1Additional;
     }
 
     function _checkSlippage(uint160 _swapThresholdPrice, bool zeroForOne)
