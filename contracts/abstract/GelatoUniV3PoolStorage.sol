@@ -52,13 +52,28 @@ abstract contract GelatoUniV3PoolStorage is
 
     // XXXXXXXX DO NOT MODIFY ORDERING XXXXXXXX
 
-    event MetaParamsAdjusted(
-        uint256 supplyCap,
-        uint256 heartbeat,
-        int24 minTickDeviation,
-        int24 maxTickDeviation,
-        uint32 observationSeconds,
-        uint160 maxSlippagePercentage
+    event UpdateSupplyCap(uint256 supplyCapOld, uint256 supplyCapNew);
+
+    event UpdateHeartbeat(uint256 heartbeatOld, uint256 heartbeatNew);
+
+    event UpdateMinTickDeviation(
+        int24 minTickDeviationOld,
+        int24 minTickDeviationNew
+    );
+
+    event UpdateMaxTickDeviation(
+        int24 maxTickDeviationOld,
+        int24 maxTickDeviationNew
+    );
+
+    event UpdateObservationSeconds(
+        uint32 observationSecondsOld,
+        uint32 observationSecondsNew
+    );
+
+    event UpdateMaxSlippagePercentage(
+        uint160 maxSlippagePercentageOld,
+        uint160 maxSlippagePercentageNew
     );
 
     constructor(IUniswapV3Pool _pool, address payable _gelato)
@@ -94,28 +109,52 @@ abstract contract GelatoUniV3PoolStorage is
         _owner = _owner_;
     }
 
-    function updateMetaParams(
-        uint256 __supplyCap,
-        uint256 __heartbeat,
-        int24 __minTickDeviation,
-        int24 __maxTickDeviation,
-        uint32 __observationSeconds,
-        uint160 __maxSlippagePercentage
-    ) external onlyOwner {
-        _supplyCap = __supplyCap;
-        _heartbeat = __heartbeat;
-        _minTickDeviation = __minTickDeviation;
-        _maxTickDeviation = __maxTickDeviation;
-        _observationSeconds = __observationSeconds;
-        _maxSlippagePercentage = __maxSlippagePercentage;
-        emit MetaParamsAdjusted(
-            __supplyCap,
-            __heartbeat,
-            __minTickDeviation,
-            __maxTickDeviation,
-            __observationSeconds,
-            __maxSlippagePercentage
+    function updateSupplyCap(uint256 newSupplyCap) external onlyOwner {
+        emit UpdateSupplyCap(_supplyCap, newSupplyCap);
+        _supplyCap = newSupplyCap;
+    }
+
+    function updateHeartbeat(uint256 newHeartbeat) external onlyOwner {
+        emit UpdateHeartbeat(_heartbeat, newHeartbeat);
+        _heartbeat = newHeartbeat;
+    }
+
+    function updateMinTickDeviation(int24 newMinTickDeviation)
+        external
+        onlyOwner
+    {
+        emit UpdateMinTickDeviation(_minTickDeviation, newMinTickDeviation);
+        _minTickDeviation = newMinTickDeviation;
+    }
+
+    function updateMaxTickDeviation(int24 newMaxTickDeviation)
+        external
+        onlyOwner
+    {
+        emit UpdateMaxTickDeviation(_maxTickDeviation, newMaxTickDeviation);
+        _maxTickDeviation = newMaxTickDeviation;
+    }
+
+    function updateObservationSeconds(uint32 newObservationSeconds)
+        external
+        onlyOwner
+    {
+        emit UpdateObservationSeconds(
+            _observationSeconds,
+            newObservationSeconds
         );
+        _observationSeconds = newObservationSeconds;
+    }
+
+    function updateMaxSlippagePercentage(uint32 newMaxSlippagePercentage)
+        external
+        onlyOwner
+    {
+        emit UpdateMaxSlippagePercentage(
+            _maxSlippagePercentage,
+            newMaxSlippagePercentage
+        );
+        _maxSlippagePercentage = newMaxSlippagePercentage;
     }
 
     function supplyCap() external view returns (uint256) {
