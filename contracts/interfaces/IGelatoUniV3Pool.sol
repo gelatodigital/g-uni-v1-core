@@ -22,7 +22,7 @@ interface IGelatoUniV3Pool {
 
     function pool() external view returns (IUniswapV3Pool);
 
-    function mint(uint128 _newLiquidity, address minter)
+    function mint(uint256 amount0Max, uint256 amount1Max)
         external
         returns (
             uint256 amount0,
@@ -30,7 +30,7 @@ interface IGelatoUniV3Pool {
             uint256 mintAmount
         );
 
-    function burn(uint256 _burnAmount, address burner)
+    function burn(uint256 _burnAmount)
         external
         returns (
             uint256 amount0,
