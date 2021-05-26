@@ -33,14 +33,18 @@ contract GelatoUniV3Pool is
         address minter,
         uint256 mintAmount,
         uint256 amount0In,
-        uint256 amount1In
+        uint256 amount1In,
+        uint256 leftover0,
+        uint256 leftover1
     );
 
     event Burned(
         address burner,
         uint256 burnAmount,
         uint256 amount0Out,
-        uint256 amount1Out
+        uint256 amount1Out,
+        uint256 leftover0,
+        uint256 leftover1
     );
 
     event Rebalance(int24 newLowerTick, int24 newUpperTick);
@@ -139,7 +143,14 @@ contract GelatoUniV3Pool is
         _mint(msg.sender, mintAmount);
         amount0 += extraAmount0;
         amount1 += extraAmount1;
-        emit Minted(msg.sender, mintAmount, amount0, amount1);
+        emit Minted(
+            msg.sender,
+            mintAmount,
+            amount0,
+            amount1,
+            extraAmount0,
+            extraAmount1
+        );
         // solhint-disable-next-line not-rely-on-time
         _lastMintOrBurnTimestamp = block.timestamp;
     }
@@ -187,15 +198,21 @@ contract GelatoUniV3Pool is
         if (extraAmount0 > 0) token0.safeTransfer(msg.sender, extraAmount0);
 
         uint256 extraAmount1 =
-            (uint256(_burnAmount) * token1.balanceOf(address(this))) /
-                totalSupply;
+            (_burnAmount * token1.balanceOf(address(this))) / totalSupply;
 
         if (extraAmount1 > 0) token1.safeTransfer(msg.sender, extraAmount1);
 
         amount0 += extraAmount0;
         amount1 += extraAmount1;
 
-        emit Burned(msg.sender, _burnAmount, amount0, amount1);
+        emit Burned(
+            msg.sender,
+            _burnAmount,
+            amount0,
+            amount1,
+            extraAmount0,
+            extraAmount1
+        );
         // solhint-disable-next-line not-rely-on-time
         _lastMintOrBurnTimestamp = block.timestamp;
     }
@@ -374,7 +391,7 @@ contract GelatoUniV3Pool is
                 _zeroForOne,
                 _swapAmount,
                 _swapThresholdPrice,
-                abi.encode(address(this))
+                ""
             );
 
         finalAmount0 = uint256(int256(_amount0) - amount0Delta);
@@ -505,14 +522,12 @@ contract GelatoUniV3Pool is
         uint160 maxSlippage = (avgSqrtRatioX96 * _maxSlippagePercentage) / 100;
         if (zeroForOne) {
             require(
-                _swapThresholdPrice < avgSqrtRatioX96 &&
-                    _swapThresholdPrice >= avgSqrtRatioX96 - maxSlippage,
+                _swapThresholdPrice >= avgSqrtRatioX96 - maxSlippage,
                 "slippage price is out of acceptable range"
             );
         } else {
             require(
-                _swapThresholdPrice > avgSqrtRatioX96 &&
-                    _swapThresholdPrice <= avgSqrtRatioX96 + maxSlippage,
+                _swapThresholdPrice <= avgSqrtRatioX96 + maxSlippage,
                 "slippage price is out of acceptable range"
             );
         }
