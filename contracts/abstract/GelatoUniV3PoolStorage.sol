@@ -250,10 +250,6 @@ abstract contract GelatoUniV3PoolStorage is
         return _lastRebalanceTimestamp;
     }
 
-    function lastMintOrBurnTimestamp() external view returns (uint256) {
-        return _lastMintOrBurnTimestamp;
-    }
-
     function getPositionID() external view returns (bytes32 positionID) {
         return _getPositionID();
     }

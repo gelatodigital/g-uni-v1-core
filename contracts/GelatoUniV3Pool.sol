@@ -158,9 +158,6 @@ contract GelatoUniV3Pool is
 
         _mint(msg.sender, mintAmount);
         emit Minted(msg.sender, mintAmount, amount0, amount1);
-
-        // solhint-disable-next-line not-rely-on-time
-        _lastMintOrBurnTimestamp = block.timestamp;
     }
 
     // solhint-disable-next-line function-max-lines
@@ -214,8 +211,6 @@ contract GelatoUniV3Pool is
         amount1 = amount1.add(extraAmount1);
 
         emit Burned(msg.sender, _burnAmount, amount0, amount1);
-        // solhint-disable-next-line not-rely-on-time
-        _lastMintOrBurnTimestamp = block.timestamp;
     }
 
     function rebalance(
@@ -379,18 +374,18 @@ contract GelatoUniV3Pool is
                 : token1.balanceOf(address(this)).sub(adminFee1);
         }
 
-        (, int24 midTick, , , , , ) = pool.slot0();
-
-        // solhint-disable-next-line not-rely-on-time
-        if (block.timestamp < _lastRebalanceTimestamp.add(_heartbeat)) {
-            require(
-                midTick > _currentUpperTick || midTick < _currentLowerTick,
-                "GelatoUniV3Pool._adjustCurrentPool: price still in range and no heartbeat"
-            );
-        }
-
         // if changing ticks on rebalance is enables
         if (!_disableChangeTicks) {
+            (, int24 midTick, , , , , ) = pool.slot0();
+
+            // solhint-disable-next-line not-rely-on-time
+            if (block.timestamp < _lastRebalanceTimestamp.add(_heartbeat)) {
+                require(
+                    midTick > _currentUpperTick || midTick < _currentLowerTick,
+                    "GelatoUniV3Pool._adjustCurrentPool: price still in range and no heartbeat"
+                );
+            }
+
             require(
                 _newLowerTick <= midTick - _minTickDeviation &&
                     _newLowerTick >= midTick - _maxTickDeviation,
@@ -454,11 +449,13 @@ contract GelatoUniV3Pool is
                 amountFeesAccrued0 > _feeAmount.mul(_minimumFeeMultiplier),
                 "cannot rebalance: tx fee is too large for fee reinvestment"
             );
+            amountFeesAccrued0 = amountFeesAccrued0.sub(_feeAmount);
         } else {
             require(
                 amountFeesAccrued1 > _feeAmount.mul(_minimumFeeMultiplier),
                 "cannot rebalance: tx fee is too large for fee reinvestment"
             );
+            amountFeesAccrued1 = amountFeesAccrued1.sub(_feeAmount);
         }
 
         adminFee0 = amountFeesAccrued0.mul(_adminFeeBPS).div(10000);

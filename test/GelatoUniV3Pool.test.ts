@@ -284,7 +284,7 @@ describe("GelatoUniV3Pools", function () {
                   887220,
                   encodePriceSqrt("1", "1"),
                   6000,
-                  100,
+                  10,
                   token0.address
                 )
             ).to.be.reverted;
@@ -311,7 +311,7 @@ describe("GelatoUniV3Pools", function () {
                   887220,
                   encodePriceSqrt("100000", "1"),
                   6000,
-                  100,
+                  10,
                   token0.address
                 )
             ).to.be.reverted;
@@ -323,7 +323,7 @@ describe("GelatoUniV3Pools", function () {
                 887220,
                 encodePriceSqrt("1.1", "1"),
                 5000,
-                100,
+                10,
                 token0.address
               );
 
@@ -333,7 +333,7 @@ describe("GelatoUniV3Pools", function () {
             expect(gelatoBalanceAfter).to.be.gt(gelatoBalanceBefore);
             expect(
               Number(gelatoBalanceAfter.sub(gelatoBalanceBefore))
-            ).to.be.equal(100);
+            ).to.be.equal(10);
 
             const [liquidityNew] = await uniswapPool.positions(
               position(gelatoUniV3Pool.address, -887220, 887220)
@@ -377,7 +377,7 @@ describe("GelatoUniV3Pools", function () {
               const executionTime = block.timestamp + 300;
               await network.provider.send("evm_mine", [executionTime]);
             }
-
+            await swapTest.washTrade(uniswapPool.address, "50000", 100, 2);
             await gelatoUniV3Pool
               .connect(gelato)
               .rebalance(
@@ -385,7 +385,7 @@ describe("GelatoUniV3Pools", function () {
                 443580,
                 encodePriceSqrt("1.1", "1"),
                 4000,
-                100,
+                10,
                 token0.address
               );
 
@@ -395,7 +395,7 @@ describe("GelatoUniV3Pools", function () {
             expect(gelatoBalanceAfter).to.be.gt(gelatoBalanceBefore);
             expect(
               Number(gelatoBalanceAfter.sub(gelatoBalanceBefore))
-            ).to.be.equal(100);
+            ).to.be.equal(10);
 
             const [liquidityOldAfter] = await uniswapPool.positions(
               position(gelatoUniV3Pool.address, -887220, 887220)
