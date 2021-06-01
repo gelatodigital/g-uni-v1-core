@@ -1,20 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity 0.8.4;
+pragma solidity ^0.7.0;
 
 import {GUNIV3} from "./GUNIV3.sol";
 import {Gelatofied} from "./Gelatofied.sol";
 import {OwnableUninitialized} from "./OwnableUninitialized.sol";
 import {UniswapV3Helpers} from "./UniswapV3Helpers.sol";
-import {
-    Initializable
-} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import {Initializable} from "@openzeppelin/contracts/proxy/Initializable.sol";
 import {
     IUniswapV3Pool
 } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {
     ReentrancyGuard
-} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /// @dev Single Global upgradeable state var storage base: APPEND ONLY
 /// @dev Add all inherited contracts with state vars here: APPEND ONLY

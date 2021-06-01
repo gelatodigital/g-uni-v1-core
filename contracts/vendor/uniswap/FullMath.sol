@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: GPL-3.0
-pragma solidity 0.8.4;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.7.0;
 
 /// @title Contains 512-bit math functions
 /// @notice Facilitates multiplication and division that can have overflow of an intermediate value without any loss of precision
@@ -61,9 +61,7 @@ library FullMath {
         // Factor powers of two out of denominator
         // Compute largest power of two divisor of denominator.
         // Always >= 1.
-        // EDIT for 0.8 compatibility:
-        // see: https://ethereum.stackexchange.com/questions/96642/unary-operator-cannot-be-applied-to-type-uint256
-        uint256 twos = (type(uint256).max - denominator + 1) & denominator;
+        uint256 twos = -denominator & denominator;
         // Divide denominator by power of two
         assembly {
             denominator := div(denominator, twos)
