@@ -241,6 +241,23 @@ contract GelatoUniV3Pool is
         emit Rebalance(_newLowerTick, _newUpperTick);
     }
 
+    function withdrawFromAdminBalance(uint256 amountOut, address token)
+        external
+        nonReentrant
+    {
+        require(
+            owner() == msg.sender || _adminWhitelistedTreasury[msg.sender],
+            "not authorized to withdraw admin fees"
+        );
+        if (address(token0) == token) {
+            _adminBalanceToken0 = _adminBalanceToken0.sub(amountOut);
+            token0.safeTransfer(msg.sender, amountOut);
+        } else if (address(token1) == token) {
+            _adminBalanceToken1 = _adminBalanceToken1.sub(amountOut);
+            token1.safeTransfer(msg.sender, amountOut);
+        }
+    }
+
     function getMintAmounts(uint256 amount0Max, uint256 amount1Max)
         external
         view
@@ -344,18 +361,22 @@ contract GelatoUniV3Pool is
         {
             (uint128 _liquidity, , , , ) = pool.positions(_getPositionID());
 
-            _withdraw(_currentLowerTick, _currentUpperTick, _liquidity);
-
-            uint256 balance0 = token0.balanceOf(address(this));
-            uint256 balance1 = token1.balanceOf(address(this));
+            (uint256 adminFee0, uint256 adminFee1) =
+                _withdraw(
+                    _currentLowerTick,
+                    _currentUpperTick,
+                    _liquidity,
+                    _feeAmount,
+                    _paymentToken
+                );
 
             reinvest0 = _paymentToken == address(token0)
-                ? balance0.sub(_feeAmount)
-                : balance0;
+                ? token0.balanceOf(address(this)).sub(adminFee0).sub(_feeAmount)
+                : token0.balanceOf(address(this)).sub(adminFee0);
 
             reinvest1 = _paymentToken == address(token1)
-                ? balance1.sub(_feeAmount)
-                : balance1;
+                ? token1.balanceOf(address(this)).sub(adminFee1).sub(_feeAmount)
+                : token1.balanceOf(address(this)).sub(adminFee1);
         }
 
         (, int24 midTick, , , , , ) = pool.slot0();
@@ -368,46 +389,83 @@ contract GelatoUniV3Pool is
             );
         }
 
-        require(
-            _newLowerTick <= midTick - _minTickDeviation &&
-                _newLowerTick >= midTick - _maxTickDeviation,
-            "GelatoUniV3Pool._adjustCurrentPool: lowerTick out of range"
-        );
+        // if changing ticks on rebalance is enables
+        if (!_disableChangeTicks) {
+            require(
+                _newLowerTick <= midTick - _minTickDeviation &&
+                    _newLowerTick >= midTick - _maxTickDeviation,
+                "GelatoUniV3Pool._adjustCurrentPool: lowerTick out of range"
+            );
 
-        require(
-            _newUpperTick <= midTick + _maxTickDeviation &&
-                _newUpperTick >= midTick + _minTickDeviation,
-            "GelatoUniV3Pool._adjustCurrentPool: upperTick out of range"
-        );
+            require(
+                _newUpperTick <= midTick + _maxTickDeviation &&
+                    _newUpperTick >= midTick + _minTickDeviation,
+                "GelatoUniV3Pool._adjustCurrentPool: upperTick out of range"
+            );
 
-        if (_currentLowerTick != _newLowerTick)
-            _currentLowerTick = _newLowerTick;
-        if (_currentUpperTick != _newUpperTick)
-            _currentUpperTick = _newUpperTick;
-
-        _deposit(
-            _newLowerTick,
-            _newUpperTick,
-            reinvest0,
-            reinvest1,
-            _swapThresholdPrice,
-            _swapAmountBPS
-        );
+            if (_currentLowerTick != _newLowerTick)
+                _currentLowerTick = _newLowerTick;
+            if (_currentUpperTick != _newUpperTick)
+                _currentUpperTick = _newUpperTick;
+            _deposit(
+                _newLowerTick,
+                _newUpperTick,
+                reinvest0,
+                reinvest1,
+                _swapThresholdPrice,
+                _swapAmountBPS
+            );
+        } else {
+            // else cannot change ticks so _currentLowerTick and _currentUpperTick must be bounds
+            _deposit(
+                _currentLowerTick,
+                _currentUpperTick,
+                reinvest0,
+                reinvest1,
+                _swapThresholdPrice,
+                _swapAmountBPS
+            );
+        }
     }
 
     function _withdraw(
         int24 _lowerTick,
         int24 _upperTick,
-        uint128 _liquidity
-    ) private {
-        pool.burn(_lowerTick, _upperTick, _liquidity);
-        pool.collect(
-            address(this),
-            _lowerTick,
-            _upperTick,
-            type(uint128).max,
-            type(uint128).max
-        );
+        uint128 _liquidity,
+        uint256 _feeAmount,
+        address _paymentToken
+    ) private returns (uint256 adminFee0, uint256 adminFee1) {
+        (uint256 amount0Burned, uint256 amount1Burned) =
+            pool.burn(_lowerTick, _upperTick, _liquidity);
+        (uint256 amount0Total, uint256 amount1Total) =
+            pool.collect(
+                address(this),
+                _lowerTick,
+                _upperTick,
+                type(uint128).max,
+                type(uint128).max
+            );
+        uint256 amountFeesAccrued0 = amount0Total.sub(amount0Burned);
+        uint256 amountFeesAccrued1 = amount1Total.sub(amount1Burned);
+
+        // require fees accrued to be X times greater than the transaction fee of rebalancing
+        if (_paymentToken == address(token0)) {
+            require(
+                amountFeesAccrued0 > _feeAmount.mul(_minimumFeeMultiplier),
+                "cannot rebalance: tx fee is too large for fee reinvestment"
+            );
+        } else {
+            require(
+                amountFeesAccrued1 > _feeAmount.mul(_minimumFeeMultiplier),
+                "cannot rebalance: tx fee is too large for fee reinvestment"
+            );
+        }
+
+        adminFee0 = amountFeesAccrued0.mul(_adminFeeBPS).div(10000);
+        adminFee1 = amountFeesAccrued1.mul(_adminFeeBPS).div(10000);
+
+        _adminBalanceToken0 = _adminBalanceToken0.add(adminFee0);
+        _adminBalanceToken1 = _adminBalanceToken1.add(adminFee1);
     }
 
     // solhint-disable-next-line function-max-lines

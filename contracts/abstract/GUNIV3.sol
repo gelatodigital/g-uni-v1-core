@@ -1,7 +1,10 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.7.0;
 
-import {ERC20, ERC20Permit} from "./ERC20Permit.sol";
+import {
+    ERC20,
+    ERC20Permit
+} from "@openzeppelin/contracts/drafts/ERC20Permit.sol";
 
 /// @dev DO NOT ADD STATE VARIABLES - APPEND THEM TO GelatoUniV3PoolStorage
 /// @dev DO NOT ADD BASE CONTRACTS WITH STATE VARS - APPEND THEM TO GelatoUniV3PoolStorage

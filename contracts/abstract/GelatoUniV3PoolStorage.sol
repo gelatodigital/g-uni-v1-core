@@ -48,6 +48,13 @@ abstract contract GelatoUniV3PoolStorage is
 
     // APPPEND ADDITIONAL STATE VARS BELOW:
 
+    bool internal _disableChangeTicks;
+    uint256 internal _minimumFeeMultiplier;
+    uint256 internal _adminFeeBPS;
+    uint256 internal _adminBalanceToken0;
+    uint256 internal _adminBalanceToken1;
+    mapping(address => bool) internal _adminWhitelistedTreasury;
+
     // XXXXXXXX DO NOT MODIFY ORDERING XXXXXXXX
 
     event UpdateSupplyCap(uint256 supplyCapOld, uint256 supplyCapNew);
@@ -74,6 +81,20 @@ abstract contract GelatoUniV3PoolStorage is
         uint160 maxSlippagePercentageNew
     );
 
+    event UpdateDisableChangeTicks(
+        bool disableChangeTicksOld,
+        bool disableChangeTicksNew
+    );
+
+    event UpdateMinimumFeeMultiplier(
+        uint256 feeMultiplierOld,
+        uint256 feeMultiplierNew
+    );
+
+    event UpdateAdminFeeBPS(uint256 adminFeeOld, uint256 adminFeeNew);
+
+    event UpdateTreasury(address account, bool isWhitelisted);
+
     constructor(IUniswapV3Pool _pool, address payable _gelato)
         Gelatofied(_gelato)
     {
@@ -85,16 +106,17 @@ abstract contract GelatoUniV3PoolStorage is
     }
 
     function initialize(
-        uint256 __supplyCap,
+        uint256 _supplyCap_,
         int24 _lowerTick,
         int24 _upperTick,
+        bool _disableChangeTicks_,
         address _owner_
     ) external initializer {
         require(
             msg.sender == deployer,
             "GelatoUniV3PoolStorage.initialize: only deployer"
         );
-        _supplyCap = __supplyCap;
+        _supplyCap = _supplyCap_;
         _heartbeat = 1 days; // default: one day
         _minTickDeviation = 120; // default: ~1% price difference up and down
         _maxTickDeviation = 7000; // default: ~100% price difference up and down
@@ -103,6 +125,7 @@ abstract contract GelatoUniV3PoolStorage is
 
         _currentLowerTick = _lowerTick;
         _currentUpperTick = _upperTick;
+        _disableChangeTicks = _disableChangeTicks_;
 
         _owner = _owner_;
     }
@@ -155,6 +178,42 @@ abstract contract GelatoUniV3PoolStorage is
         _maxSlippagePercentage = newMaxSlippagePercentage;
     }
 
+    function updateDisableChangeTicks(bool disableChangeTicks)
+        external
+        onlyOwner
+    {
+        emit UpdateDisableChangeTicks(_disableChangeTicks, disableChangeTicks);
+        _disableChangeTicks = disableChangeTicks;
+    }
+
+    function updateMinimumFeeMultiplier(uint256 newFeeMultiplier)
+        external
+        onlyOwner
+    {
+        emit UpdateMinimumFeeMultiplier(
+            _minimumFeeMultiplier,
+            newFeeMultiplier
+        );
+        _minimumFeeMultiplier = newFeeMultiplier;
+    }
+
+    function updateAdminFeeBPS(uint256 newAdminFeeBPS) external onlyOwner {
+        emit UpdateMinimumFeeMultiplier(_adminFeeBPS, newAdminFeeBPS);
+        _adminFeeBPS = newAdminFeeBPS;
+    }
+
+    function whitelistTreasury(address account) external onlyOwner {
+        require(!_adminWhitelistedTreasury[account], "already whitelisted");
+        emit UpdateTreasury(account, true);
+        _adminWhitelistedTreasury[account] = true;
+    }
+
+    function blacklistTreasury(address account) external onlyOwner {
+        require(_adminWhitelistedTreasury[account], "already blacklisted");
+        emit UpdateTreasury(account, false);
+        _adminWhitelistedTreasury[account] = false;
+    }
+
     function supplyCap() external view returns (uint256) {
         return _supplyCap;
     }
@@ -197,6 +256,22 @@ abstract contract GelatoUniV3PoolStorage is
 
     function getPositionID() external view returns (bytes32 positionID) {
         return _getPositionID();
+    }
+
+    function adminBalanceToken0() external view returns (uint256) {
+        return _adminBalanceToken0;
+    }
+
+    function adminBalanceToken1() external view returns (uint256) {
+        return _adminBalanceToken1;
+    }
+
+    function adminWhitelistedTreasury(address account)
+        external
+        view
+        returns (bool)
+    {
+        return _adminWhitelistedTreasury[account];
     }
 
     function _getPositionID() internal view returns (bytes32 positionID) {
