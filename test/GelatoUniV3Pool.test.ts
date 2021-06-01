@@ -223,6 +223,17 @@ describe("GelatoUniV3Pools", function () {
         await expect(
           gelatoUniV3Pool.connect(gelato).updateMaxSlippagePercentage(300)
         ).to.be.reverted;
+
+        await expect(gelatoUniV3Pool.connect(gelato).updateAdminFeeBPS(100)).to
+          .be.reverted;
+
+        await expect(
+          gelatoUniV3Pool.connect(gelato).updateMinimumFeeMultiplier(10)
+        ).to.be.reverted;
+
+        await expect(
+          gelatoUniV3Pool.connect(gelato).updateDisableChangeTicks(true)
+        ).to.be.reverted;
       });
     });
 
@@ -639,6 +650,125 @@ describe("GelatoUniV3Pools", function () {
 
           expect(contractBalance0).to.equal(0);
           expect(contractBalance0).to.equal(0);
+        });
+      });
+      describe("new admin functions", function () {
+        it("test new admin functions", async function () {
+          await swapTest.washTrade(uniswapPool.address, "50000", 100, 3);
+          await swapTest.washTrade(uniswapPool.address, "50000", 100, 3);
+          const { sqrtPriceX96 } = await uniswapPool.slot0();
+          const slippagePrice = sqrtPriceX96.sub(
+            sqrtPriceX96.div(ethers.BigNumber.from("25"))
+          );
+          await expect(
+            gelatoUniV3Pool
+              .connect(gelato)
+              .rebalance(
+                -443580,
+                443580,
+                slippagePrice,
+                5000,
+                10,
+                token0.address
+              )
+          ).to.be.reverted;
+
+          await gelatoUniV3Pool
+            .connect(user0)
+            .updateSupplyCap(ethers.constants.MaxUint256);
+          await gelatoUniV3Pool.connect(user0).updateHeartbeat("300");
+          await gelatoUniV3Pool.connect(user0).updateObservationSeconds("30");
+          await gelatoUniV3Pool.connect(user0).updateMaxSlippagePercentage("6");
+          await expect(
+            gelatoUniV3Pool
+              .connect(gelato)
+              .rebalance(
+                -443580,
+                443580,
+                slippagePrice,
+                5000,
+                10,
+                token0.address
+              )
+          ).to.be.reverted;
+          await gelatoUniV3Pool.connect(user0).updateDisableChangeTicks(true);
+          await gelatoUniV3Pool.connect(user0).updateAdminFeeBPS(1000);
+          const tx = await gelatoUniV3Pool
+            .connect(user0)
+            .updateMinimumFeeMultiplier(2);
+          await tx.wait();
+          if (network.provider && tx.blockHash && user0.provider) {
+            const block = await user0.provider.getBlock(tx.blockHash);
+            const executionTime = block.timestamp + 300;
+            await network.provider.send("evm_mine", [executionTime]);
+          }
+          await gelatoUniV3Pool
+            .connect(gelato)
+            .rebalance(
+              -887220,
+              887220,
+              slippagePrice,
+              5000,
+              10,
+              token0.address
+            );
+          const bal0 = await gelatoUniV3Pool.adminBalanceToken0();
+          const bal1 = await gelatoUniV3Pool.adminBalanceToken1();
+
+          expect(bal0).to.be.gt(ethers.constants.Zero);
+          expect(bal1).to.be.gt(ethers.constants.Zero);
+
+          await expect(
+            gelatoUniV3Pool
+              .connect(gelato)
+              .whitelistTreasury(await user1.getAddress())
+          ).to.be.reverted;
+
+          await gelatoUniV3Pool
+            .connect(user0)
+            .whitelistTreasury(await user1.getAddress());
+
+          await gelatoUniV3Pool
+            .connect(user1)
+            .withdrawFromAdminBalance(bal0, token0.address);
+
+          await gelatoUniV3Pool
+            .connect(user0)
+            .withdrawFromAdminBalance(bal1, token1.address);
+
+          await expect(
+            gelatoUniV3Pool
+              .connect(user1)
+              .withdrawFromAdminBalance(bal0, token0.address)
+          ).to.be.reverted;
+
+          await expect(
+            gelatoUniV3Pool
+              .connect(gelato)
+              .blacklistTreasury(await user1.getAddress())
+          ).to.be.reverted;
+
+          await gelatoUniV3Pool
+            .connect(user0)
+            .blacklistTreasury(await user1.getAddress());
+
+          await expect(
+            gelatoUniV3Pool
+              .connect(user0)
+              .blacklistTreasury(await user1.getAddress())
+          ).to.be.reverted;
+
+          await expect(
+            gelatoUniV3Pool
+              .connect(user1)
+              .withdrawFromAdminBalance(bal0, token0.address)
+          ).to.be.reverted;
+
+          const bal0End = await gelatoUniV3Pool.adminBalanceToken0();
+          const bal1End = await gelatoUniV3Pool.adminBalanceToken1();
+
+          expect(bal0End).to.equal(ethers.constants.Zero);
+          expect(bal1End).to.equal(ethers.constants.Zero);
         });
       });
     });
