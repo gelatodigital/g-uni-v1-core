@@ -234,8 +234,8 @@ abstract contract GelatoUniV3PoolStorage is
         return _lastRebalanceTimestamp;
     }
 
-    function getPositionID() external view returns (bytes32 positionID) {
-        return _getPositionID();
+    function disableChangeTicks() external view returns (bool) {
+        return _disableChangeTicks;
     }
 
     function adminBalanceToken0() external view returns (uint256) {
@@ -252,6 +252,10 @@ abstract contract GelatoUniV3PoolStorage is
         returns (bool)
     {
         return _adminWhitelistedTreasury[account];
+    }
+
+    function getPositionID() external view returns (bytes32 positionID) {
+        return _getPositionID();
     }
 
     function _getPositionID() internal view returns (bytes32 positionID) {

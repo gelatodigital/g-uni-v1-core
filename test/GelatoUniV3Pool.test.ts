@@ -689,6 +689,7 @@ describe("GelatoUniV3Pools", function () {
               )
           ).to.be.reverted;
           await gelatoUniV3Pool.connect(user0).updateDisableChangeTicks(true);
+          expect(await gelatoUniV3Pool.disableChangeTicks()).to.equal(true);
           await gelatoUniV3Pool.connect(user0).updateAdminFeeBPS(1000);
           const tx = await gelatoUniV3Pool
             .connect(user0)

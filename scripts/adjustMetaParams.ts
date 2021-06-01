@@ -10,6 +10,8 @@ const op = async (signer: SignerWithAddress) => {
     addresses.GUNIV3,
     signer
   );
+  await gelatoUniV3Pool.pool();
+  /* METAPARAMS NOW HAVE INDIVIDUAL UPDATE METHODS
   await gelatoUniV3Pool.updateMetaParams(
     ethers.utils.parseEther("25"), // this is a param we are changing: lower supply cap
     "600",
@@ -17,7 +19,7 @@ const op = async (signer: SignerWithAddress) => {
     "7000",
     "300",
     "5"
-  );
+  );*/
 };
 
 (async () => {
