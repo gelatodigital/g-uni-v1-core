@@ -61,22 +61,16 @@ abstract contract GelatoUniV3PoolStorage is
 
     event UpdateHeartbeat(uint256 heartbeatOld, uint256 heartbeatNew);
 
-    event UpdateMinTickDeviation(
+    event UpdateTickDeviations(
         int24 minTickDeviationOld,
-        int24 minTickDeviationNew
-    );
-
-    event UpdateMaxTickDeviation(
+        int24 minTickDeviationNew,
         int24 maxTickDeviationOld,
         int24 maxTickDeviationNew
     );
 
-    event UpdateObservationSeconds(
+    event UpdateSlippageParams(
         uint32 observationSecondsOld,
-        uint32 observationSecondsNew
-    );
-
-    event UpdateMaxSlippagePercentage(
+        uint32 observationSecondsNew,
         uint160 maxSlippagePercentageOld,
         uint160 maxSlippagePercentageNew
     );
@@ -140,41 +134,31 @@ abstract contract GelatoUniV3PoolStorage is
         _heartbeat = newHeartbeat;
     }
 
-    function updateMinTickDeviation(int24 newMinTickDeviation)
-        external
-        onlyOwner
-    {
-        emit UpdateMinTickDeviation(_minTickDeviation, newMinTickDeviation);
+    function updateTickDeviations(
+        int24 newMinTickDeviation,
+        int24 newMaxTickDeviation
+    ) external onlyOwner {
+        emit UpdateTickDeviations(
+            _minTickDeviation,
+            newMinTickDeviation,
+            _maxTickDeviation,
+            newMaxTickDeviation
+        );
+        _maxTickDeviation = newMaxTickDeviation;
         _minTickDeviation = newMinTickDeviation;
     }
 
-    function updateMaxTickDeviation(int24 newMaxTickDeviation)
-        external
-        onlyOwner
-    {
-        emit UpdateMaxTickDeviation(_maxTickDeviation, newMaxTickDeviation);
-        _maxTickDeviation = newMaxTickDeviation;
-    }
-
-    function updateObservationSeconds(uint32 newObservationSeconds)
-        external
-        onlyOwner
-    {
-        emit UpdateObservationSeconds(
+    function updateSlippageParams(
+        uint32 newObservationSeconds,
+        uint32 newMaxSlippagePercentage
+    ) external onlyOwner {
+        emit UpdateSlippageParams(
             _observationSeconds,
-            newObservationSeconds
-        );
-        _observationSeconds = newObservationSeconds;
-    }
-
-    function updateMaxSlippagePercentage(uint32 newMaxSlippagePercentage)
-        external
-        onlyOwner
-    {
-        emit UpdateMaxSlippagePercentage(
+            newObservationSeconds,
             _maxSlippagePercentage,
             newMaxSlippagePercentage
         );
+        _observationSeconds = newObservationSeconds;
         _maxSlippagePercentage = newMaxSlippagePercentage;
     }
 

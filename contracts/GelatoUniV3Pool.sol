@@ -253,6 +253,33 @@ contract GelatoUniV3Pool is
         }
     }
 
+    function autoWithdrawFromAdminBalance(
+        uint256 amountOut,
+        address token,
+        address receiver,
+        uint256 feeAmount
+    ) external gelatofy(feeAmount, token) {
+        require(
+            feeAmount.mul(10) > amountOut,
+            "withrdrawal cannot be too small"
+        );
+        require(
+            receiver == owner() || _adminWhitelistedTreasury[receiver],
+            "only admins receive"
+        );
+        if (token == address(token0)) {
+            _adminBalanceToken0 = _adminBalanceToken0.sub(amountOut).sub(
+                feeAmount
+            );
+            token0.safeTransfer(receiver, amountOut);
+        } else if (token == address(token1)) {
+            _adminBalanceToken1 = _adminBalanceToken1.sub(amountOut).sub(
+                feeAmount
+            );
+            token1.safeTransfer(receiver, amountOut);
+        }
+    }
+
     function getMintAmounts(uint256 amount0Max, uint256 amount1Max)
         external
         view

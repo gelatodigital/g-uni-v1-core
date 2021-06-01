@@ -104,6 +104,7 @@ describe("GelatoUniV3Pools", function () {
     const gelatoUniV3PoolFactory = await ethers.getContractFactory(
       "GelatoUniV3Pool"
     );
+
     gelatoUniV3Pool = (await gelatoUniV3PoolFactory.deploy(
       uniswapPoolAddress,
       await gelato.getAddress()
@@ -210,18 +211,11 @@ describe("GelatoUniV3Pools", function () {
             .updateHeartbeat(ethers.constants.MaxUint256)
         ).to.be.reverted;
 
-        await expect(gelatoUniV3Pool.connect(gelato).updateMinTickDeviation(0))
-          .to.be.reverted;
-
-        await expect(gelatoUniV3Pool.connect(gelato).updateMaxTickDeviation(0))
+        await expect(gelatoUniV3Pool.connect(gelato).updateTickDeviations(0, 0))
           .to.be.reverted;
 
         await expect(
-          gelatoUniV3Pool.connect(gelato).updateObservationSeconds(300)
-        ).to.be.reverted;
-
-        await expect(
-          gelatoUniV3Pool.connect(gelato).updateMaxSlippagePercentage(300)
+          gelatoUniV3Pool.connect(gelato).updateSlippageParams(300, 10)
         ).to.be.reverted;
 
         await expect(gelatoUniV3Pool.connect(gelato).updateAdminFeeBPS(100)).to
@@ -295,7 +289,7 @@ describe("GelatoUniV3Pools", function () {
             await gelatoUniV3Pool.connect(user0).updateHeartbeat("300");
             const tx = await gelatoUniV3Pool
               .connect(user0)
-              .updateMaxTickDeviation("1000000");
+              .updateTickDeviations("120", "1000000");
             await tx.wait();
             if (network.provider && user0.provider && tx.blockHash) {
               const block = await user0.provider.getBlock(tx.blockHash);
@@ -370,7 +364,7 @@ describe("GelatoUniV3Pools", function () {
             await gelatoUniV3Pool.connect(user0).updateHeartbeat("300");
             const tx = await gelatoUniV3Pool
               .connect(user0)
-              .updateMaxTickDeviation("1000000");
+              .updateTickDeviations("120", "1000000");
             await tx.wait();
             if (network.provider && tx.blockHash && user0.provider) {
               const block = await user0.provider.getBlock(tx.blockHash);
@@ -525,12 +519,13 @@ describe("GelatoUniV3Pools", function () {
             .connect(user0)
             .updateSupplyCap(ethers.constants.MaxUint256);
           await gelatoUniV3Pool.connect(user0).updateHeartbeat("300");
-          await gelatoUniV3Pool.connect(user0).updateObservationSeconds("30");
-          await gelatoUniV3Pool.connect(user0).updateMaxSlippagePercentage("6");
-          await gelatoUniV3Pool.connect(user0).updateMinTickDeviation("120");
+          await gelatoUniV3Pool.connect(user0).updateSlippageParams("30", "6");
+          await gelatoUniV3Pool
+            .connect(user0)
+            .updateTickDeviations("120", "1000000");
           const tx = await gelatoUniV3Pool
             .connect(user0)
-            .updateMaxTickDeviation("1000000");
+            .updateTickDeviations("120", "1000000");
           await tx.wait();
           if (network.provider && tx.blockHash && user0.provider) {
             const block = await user0.provider.getBlock(tx.blockHash);
@@ -677,8 +672,10 @@ describe("GelatoUniV3Pools", function () {
             .connect(user0)
             .updateSupplyCap(ethers.constants.MaxUint256);
           await gelatoUniV3Pool.connect(user0).updateHeartbeat("300");
-          await gelatoUniV3Pool.connect(user0).updateObservationSeconds("30");
-          await gelatoUniV3Pool.connect(user0).updateMaxSlippagePercentage("6");
+          await gelatoUniV3Pool.connect(user0).updateSlippageParams("30", "6");
+          await gelatoUniV3Pool
+            .connect(user0)
+            .updateTickDeviations("120", "1000000");
           await expect(
             gelatoUniV3Pool
               .connect(gelato)
@@ -734,7 +731,10 @@ describe("GelatoUniV3Pools", function () {
 
           await gelatoUniV3Pool
             .connect(user0)
-            .withdrawFromAdminBalance(bal1, token1.address);
+            .withdrawFromAdminBalance(
+              bal1.div(ethers.BigNumber.from("2")),
+              token1.address
+            );
 
           await expect(
             gelatoUniV3Pool
@@ -763,6 +763,39 @@ describe("GelatoUniV3Pools", function () {
               .connect(user1)
               .withdrawFromAdminBalance(bal0, token0.address)
           ).to.be.reverted;
+
+          const newBal1 = await gelatoUniV3Pool.adminBalanceToken1();
+
+          await expect(
+            gelatoUniV3Pool
+              .connect(user1)
+              .autoWithdrawFromAdminBalance(
+                newBal1.sub(ethers.constants.One),
+                token1.address,
+                await user0.getAddress(),
+                1
+              )
+          ).to.be.reverted;
+
+          await expect(
+            gelatoUniV3Pool
+              .connect(gelato)
+              .autoWithdrawFromAdminBalance(
+                newBal1,
+                token1.address,
+                await user1.getAddress(),
+                1
+              )
+          ).to.be.reverted;
+
+          await gelatoUniV3Pool
+            .connect(gelato)
+            .autoWithdrawFromAdminBalance(
+              newBal1.sub(ethers.constants.One),
+              token1.address,
+              await user0.getAddress(),
+              1
+            );
 
           const bal0End = await gelatoUniV3Pool.adminBalanceToken0();
           const bal1End = await gelatoUniV3Pool.adminBalanceToken1();
