@@ -46,9 +46,16 @@ abstract contract GelatoUniV3PoolStorage is
     int24 internal _currentLowerTick;
     int24 internal _currentUpperTick;
     uint256 internal _lastRebalanceTimestamp;
-    uint256 internal _lastMintOrBurnTimestamp;
+    uint256 internal _lastMintOrBurnTimestamp; ///@notice can be removed if deploying new proxy
 
     // APPPEND ADDITIONAL STATE VARS BELOW:
+    bool internal _disableChangeTicks;
+    uint256 internal _adminFeeBPS;
+    uint256 internal _maxRebalanceFeeBPS;
+    uint256 internal _maxWithdrawFeeBPS;
+    uint256 internal _adminBalanceToken0;
+    uint256 internal _adminBalanceToken1;
+    mapping(address => bool) internal _adminWhitelistedTreasury;
 
     // XXXXXXXX DO NOT MODIFY ORDERING XXXXXXXX
 
@@ -56,25 +63,35 @@ abstract contract GelatoUniV3PoolStorage is
 
     event UpdateHeartbeat(uint256 heartbeatOld, uint256 heartbeatNew);
 
-    event UpdateMinTickDeviation(
+    event UpdateTickDeviations(
         int24 minTickDeviationOld,
-        int24 minTickDeviationNew
-    );
-
-    event UpdateMaxTickDeviation(
+        int24 minTickDeviationNew,
         int24 maxTickDeviationOld,
         int24 maxTickDeviationNew
     );
 
-    event UpdateObservationSeconds(
+    event UpdateSlippageParams(
         uint32 observationSecondsOld,
-        uint32 observationSecondsNew
-    );
-
-    event UpdateMaxSlippagePercentage(
+        uint32 observationSecondsNew,
         uint160 maxSlippagePercentageOld,
         uint160 maxSlippagePercentageNew
     );
+
+    event UpdateDisableChangeTicks(
+        bool disableChangeTicksOld,
+        bool disableChangeTicksNew
+    );
+
+    event UpdateFeeParams(
+        uint256 adminFeeOld,
+        uint256 adminFeeNew,
+        uint256 maxRebalanceFeeOld,
+        uint256 maxRebalanceFeeNew,
+        uint256 maxWithdrawFeeOld,
+        uint256 maxWithdrawFeeNew
+    );
+
+    event UpdateTreasury(address account, bool isWhitelisted);
 
     constructor(IUniswapV3Pool _pool, address payable _gelato)
         Gelatofied(_gelato)
@@ -87,21 +104,25 @@ abstract contract GelatoUniV3PoolStorage is
     }
 
     function initialize(
-        uint256 __supplyCap,
+        uint256 _supplyCap_,
         int24 _lowerTick,
         int24 _upperTick,
+        bool _disableChangeTicks_,
         address _owner_
     ) external initializer {
         require(
             msg.sender == deployer,
             "GelatoUniV3PoolStorage.initialize: only deployer"
         );
-        _supplyCap = __supplyCap;
+        _supplyCap = _supplyCap_;
         _heartbeat = 1 days; // default: one day
         _minTickDeviation = 120; // default: ~1% price difference up and down
         _maxTickDeviation = 7000; // default: ~100% price difference up and down
         _observationSeconds = 5 minutes; // default: last five minutes;
         _maxSlippagePercentage = 5; //default: 5% slippage
+        _maxRebalanceFeeBPS = 1000; //default: max rebalance tx fee is 10% of trading fees accrued;
+        _maxWithdrawFeeBPS = 1000; //default: max withdraw tx fee is 10% of withdraw amount;
+        _disableChangeTicks = _disableChangeTicks_;
 
         _currentLowerTick = _lowerTick;
         _currentUpperTick = _upperTick;
@@ -119,42 +140,73 @@ abstract contract GelatoUniV3PoolStorage is
         _heartbeat = newHeartbeat;
     }
 
-    function updateMinTickDeviation(int24 newMinTickDeviation)
-        external
-        onlyOwner
-    {
-        emit UpdateMinTickDeviation(_minTickDeviation, newMinTickDeviation);
+    function updateTickDeviations(
+        int24 newMinTickDeviation,
+        int24 newMaxTickDeviation
+    ) external onlyOwner {
+        emit UpdateTickDeviations(
+            _minTickDeviation,
+            newMinTickDeviation,
+            _maxTickDeviation,
+            newMaxTickDeviation
+        );
+        _maxTickDeviation = newMaxTickDeviation;
         _minTickDeviation = newMinTickDeviation;
     }
 
-    function updateMaxTickDeviation(int24 newMaxTickDeviation)
-        external
-        onlyOwner
-    {
-        emit UpdateMaxTickDeviation(_maxTickDeviation, newMaxTickDeviation);
-        _maxTickDeviation = newMaxTickDeviation;
-    }
-
-    function updateObservationSeconds(uint32 newObservationSeconds)
-        external
-        onlyOwner
-    {
-        emit UpdateObservationSeconds(
+    function updateSlippageParams(
+        uint32 newObservationSeconds,
+        uint32 newMaxSlippagePercentage
+    ) external onlyOwner {
+        emit UpdateSlippageParams(
             _observationSeconds,
-            newObservationSeconds
-        );
-        _observationSeconds = newObservationSeconds;
-    }
-
-    function updateMaxSlippagePercentage(uint32 newMaxSlippagePercentage)
-        external
-        onlyOwner
-    {
-        emit UpdateMaxSlippagePercentage(
+            newObservationSeconds,
             _maxSlippagePercentage,
             newMaxSlippagePercentage
         );
+        _observationSeconds = newObservationSeconds;
         _maxSlippagePercentage = newMaxSlippagePercentage;
+    }
+
+    function updateDisableChangeTicks(bool newDisableChangeTicks)
+        external
+        onlyOwner
+    {
+        emit UpdateDisableChangeTicks(
+            _disableChangeTicks,
+            newDisableChangeTicks
+        );
+        _disableChangeTicks = newDisableChangeTicks;
+    }
+
+    function updateFeeParams(
+        uint256 newAdminFeeBPS,
+        uint256 newMaxRebalanceFeeBPS,
+        uint256 newMaxWithdrawFeeBPS
+    ) external onlyOwner {
+        emit UpdateFeeParams(
+            _adminFeeBPS,
+            newAdminFeeBPS,
+            _maxRebalanceFeeBPS,
+            newMaxRebalanceFeeBPS,
+            _maxWithdrawFeeBPS,
+            newMaxWithdrawFeeBPS
+        );
+        _adminFeeBPS = newAdminFeeBPS;
+        _maxRebalanceFeeBPS = newMaxRebalanceFeeBPS;
+        _maxWithdrawFeeBPS = newMaxWithdrawFeeBPS;
+    }
+
+    function whitelistTreasury(address account) external onlyOwner {
+        require(!_adminWhitelistedTreasury[account], "already whitelisted");
+        emit UpdateTreasury(account, true);
+        _adminWhitelistedTreasury[account] = true;
+    }
+
+    function blacklistTreasury(address account) external onlyOwner {
+        require(_adminWhitelistedTreasury[account], "already blacklisted");
+        emit UpdateTreasury(account, false);
+        _adminWhitelistedTreasury[account] = false;
     }
 
     function supplyCap() external view returns (uint256) {
@@ -173,14 +225,6 @@ abstract contract GelatoUniV3PoolStorage is
         return _maxTickDeviation;
     }
 
-    function observationSeconds() external view returns (uint32) {
-        return _observationSeconds;
-    }
-
-    function maxSlippagePercentage() external view returns (uint160) {
-        return _maxSlippagePercentage;
-    }
-
     function currentLowerTick() external view returns (int24) {
         return _currentLowerTick;
     }
@@ -193,8 +237,24 @@ abstract contract GelatoUniV3PoolStorage is
         return _lastRebalanceTimestamp;
     }
 
-    function lastMintOrBurnTimestamp() external view returns (uint256) {
-        return _lastMintOrBurnTimestamp;
+    function disableChangeTicks() external view returns (bool) {
+        return _disableChangeTicks;
+    }
+
+    function adminBalanceToken0() external view returns (uint256) {
+        return _adminBalanceToken0;
+    }
+
+    function adminBalanceToken1() external view returns (uint256) {
+        return _adminBalanceToken1;
+    }
+
+    function adminWhitelistedTreasury(address account)
+        external
+        view
+        returns (bool)
+    {
+        return _adminWhitelistedTreasury[account];
     }
 
     function getPositionID() external view returns (bytes32 positionID) {
