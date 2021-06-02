@@ -21,7 +21,7 @@ const op = async (signer: SignerWithAddress) => {
     signer
   );
 
-  // @dev change these amounts to your needs
+  //@dev change these amounts to your needs
   await weth.approve(gelatoUniV3Pool.address, ethers.utils.parseEther("10000"));
   await dai.approve(
     gelatoUniV3Pool.address,

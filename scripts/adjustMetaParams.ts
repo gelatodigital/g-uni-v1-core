@@ -10,14 +10,15 @@ const op = async (signer: SignerWithAddress) => {
     addresses.GUNIV3,
     signer
   );
-  await gelatoUniV3Pool.updateMetaParams(
+  await gelatoUniV3Pool.pool();
+  /* TODO: UPDATE PARAMS INDIVIDUALLY
     ethers.utils.parseEther("25"), // this is a param we are changing: lower supply cap
     "600",
     "120",
     "7000",
     "300",
     "5"
-  );
+  ); */
 };
 
 (async () => {

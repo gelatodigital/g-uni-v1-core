@@ -12,8 +12,9 @@ const op = async (signer: SignerWithAddress) => {
   );
   await gelatoUniV3Pool.initialize(
     ethers.utils.parseEther("20000"),
-    -78900,
-    -77100,
+    -36000,
+    -30000,
+    false,
     await signer.getAddress(),
     { gasLimit: 1000000 }
   );
