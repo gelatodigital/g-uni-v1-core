@@ -46,9 +46,14 @@ abstract contract GelatoUniV3PoolStorage is
     int24 internal _currentLowerTick;
     int24 internal _currentUpperTick;
     uint256 internal _lastRebalanceTimestamp;
-    uint256 internal _lastMintOrBurnTimestamp;
+    uint256 internal _lastMintOrBurnTimestamp; ///@dev unused, remove in subsequent deploys
 
     // APPPEND ADDITIONAL STATE VARS BELOW:
+    uint256 internal _adminBalanceToken0;
+    uint256 internal _adminBalanceToken1;
+    uint256 internal _adminFeeBPS;
+    uint256 internal _autoWithdrawFeeBPS;
+    address internal _treasury;
 
     // XXXXXXXX DO NOT MODIFY ORDERING XXXXXXXX
 
@@ -76,6 +81,12 @@ abstract contract GelatoUniV3PoolStorage is
         uint160 maxSlippagePercentageNew
     );
 
+    event UpdateTreasury(address treasuryOld, address treasuryNew);
+
+    event UpdateAdminFee(uint256 adminFeeOld, uint256 adminFeeNew);
+
+    event UpdateAutoWithdrawFee(uint256 withdrawFeeOld, uint256 withdrawFeeNew);
+
     constructor(IUniswapV3Pool _pool, address payable _gelato)
         Gelatofied(_gelato)
     {
@@ -102,6 +113,7 @@ abstract contract GelatoUniV3PoolStorage is
         _maxTickDeviation = 7000; // default: ~100% price difference up and down
         _observationSeconds = 5 minutes; // default: last five minutes;
         _maxSlippagePercentage = 5; //default: 5% slippage
+        _autoWithdrawFeeBPS = 100; //default: only auto withdraw if tx fee is lt 1% amount withdrawn
 
         _currentLowerTick = _lowerTick;
         _currentUpperTick = _upperTick;
@@ -157,6 +169,26 @@ abstract contract GelatoUniV3PoolStorage is
         _maxSlippagePercentage = newMaxSlippagePercentage;
     }
 
+    function updateTreasury(address treasury) external onlyOwner {
+        emit UpdateTreasury(_treasury, treasury);
+        _treasury = treasury;
+    }
+
+    function updateAdminFee(uint256 newAdminFeeBPS) external onlyOwner {
+        require(newAdminFeeBPS <= 10000, "BPS must be below 10000");
+        emit UpdateAdminFee(_adminFeeBPS, newAdminFeeBPS);
+        _adminFeeBPS = newAdminFeeBPS;
+    }
+
+    function updateAutoWithdrawFee(uint256 newWithdrawFeeBPS)
+        external
+        onlyOwner
+    {
+        require(newWithdrawFeeBPS <= 10000, "BPS must be below 10000");
+        emit UpdateAutoWithdrawFee(_autoWithdrawFeeBPS, newWithdrawFeeBPS);
+        _autoWithdrawFeeBPS = newWithdrawFeeBPS;
+    }
+
     function supplyCap() external view returns (uint256) {
         return _supplyCap;
     }
@@ -193,8 +225,16 @@ abstract contract GelatoUniV3PoolStorage is
         return _lastRebalanceTimestamp;
     }
 
-    function lastMintOrBurnTimestamp() external view returns (uint256) {
-        return _lastMintOrBurnTimestamp;
+    function adminBalanceToken0() external view returns (uint256) {
+        return _adminBalanceToken0;
+    }
+
+    function adminBalanceToken1() external view returns (uint256) {
+        return _adminBalanceToken1;
+    }
+
+    function adminFeeBPS() external view returns (uint256) {
+        return _adminFeeBPS;
     }
 
     function getPositionID() external view returns (bytes32 positionID) {
