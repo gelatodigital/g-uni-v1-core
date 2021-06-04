@@ -180,30 +180,33 @@ contract GelatoUniV3Pool is
         require(_liquidityBurned_ < type(uint128).max);
         liquidityBurned = uint128(_liquidityBurned_);
 
-        uint256 leftover0 =
-            token0.balanceOf(address(this)) - _adminBalanceToken0;
-        uint256 leftover1 =
-            token1.balanceOf(address(this)) - _adminBalanceToken1;
-        uint256 leftoverShare0 = (_burnAmount * leftover0) / totalSupply;
-        uint256 leftoverShare1 = (_burnAmount * leftover1) / totalSupply;
+        uint256 preBalance0 = token0.balanceOf(address(this));
+        uint256 preBalance1 = token1.balanceOf(address(this));
+        uint256 leftoverShare0 =
+            (_burnAmount * (preBalance0 - _adminBalanceToken0)) / totalSupply;
+        uint256 leftoverShare1 =
+            (_burnAmount * (preBalance1 - _adminBalanceToken1)) / totalSupply;
 
-        (amount0, amount1) = pool.burn(
-            _currentLowerTick,
-            _currentUpperTick,
-            liquidityBurned
-        );
+        (uint256 burn0, uint256 burn1) =
+            pool.burn(_currentLowerTick, _currentUpperTick, liquidityBurned);
 
         // Withdraw tokens to user
         pool.collect(
             address(this),
             _currentLowerTick,
             _currentUpperTick,
-            uint128(amount0), // cast can't overflow
-            uint128(amount1) // cast can't overflow
+            uint128(burn0), // cast can't overflow
+            uint128(burn1) // cast can't overflow
         );
 
-        amount0 += leftoverShare0;
-        amount1 += leftoverShare1;
+        amount0 =
+            token0.balanceOf(address(this)) -
+            preBalance0 +
+            leftoverShare0;
+        amount1 =
+            token1.balanceOf(address(this)) -
+            preBalance1 +
+            leftoverShare1;
 
         if (amount0 > 0) {
             token0.safeTransfer(msg.sender, amount0);
@@ -457,16 +460,19 @@ contract GelatoUniV3Pool is
     ) private returns (uint256 amount0, uint256 amount1) {
         (uint256 amount0Burned, uint256 amount1Burned) =
             pool.burn(_lowerTick, _upperTick, _liquidity);
-        (uint256 amount0Total, uint256 amount1Total) =
-            pool.collect(
-                address(this),
-                _lowerTick,
-                _upperTick,
-                type(uint128).max,
-                type(uint128).max
-            );
-        uint256 amountFeesAccrued0 = amount0Total - amount0Burned;
-        uint256 amountFeesAccrued1 = amount1Total - amount1Burned;
+        uint256 preBalance0 = token0.balanceOf(address(this));
+        uint256 preBalance1 = token1.balanceOf(address(this));
+        pool.collect(
+            address(this),
+            _lowerTick,
+            _upperTick,
+            type(uint128).max,
+            type(uint128).max
+        );
+        uint256 amountFeesAccrued0 =
+            token0.balanceOf(address(this)) - preBalance0 - amount0Burned;
+        uint256 amountFeesAccrued1 =
+            token1.balanceOf(address(this)) - preBalance1 - amount1Burned;
 
         amount0 =
             _adminBalanceToken0 +

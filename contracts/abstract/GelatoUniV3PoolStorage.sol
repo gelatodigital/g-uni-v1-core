@@ -71,21 +71,21 @@ abstract contract GelatoUniV3PoolStorage is
         int24 maxTickDeviationNew
     );
 
-    event UpdateObservationSeconds(
+    event UpdateSlippageParams(
         uint32 observationSecondsOld,
-        uint32 observationSecondsNew
-    );
-
-    event UpdateMaxSlippagePercentage(
+        uint32 observationSecondsNew,
         uint160 maxSlippagePercentageOld,
         uint160 maxSlippagePercentageNew
     );
 
+    event UpdateFeeParams(
+        uint256 adminFeeOld,
+        uint256 adminFeeNew,
+        uint256 withdrawFeeOld,
+        uint256 withdrawFeeNew
+    );
+
     event UpdateTreasury(address treasuryOld, address treasuryNew);
-
-    event UpdateAdminFee(uint256 adminFeeOld, uint256 adminFeeNew);
-
-    event UpdateAutoWithdrawFee(uint256 withdrawFeeOld, uint256 withdrawFeeNew);
 
     constructor(IUniswapV3Pool _pool, address payable _gelato)
         Gelatofied(_gelato)
@@ -98,7 +98,7 @@ abstract contract GelatoUniV3PoolStorage is
     }
 
     function initialize(
-        uint256 __supplyCap,
+        uint256 _supplyCap_,
         int24 _lowerTick,
         int24 _upperTick,
         address _owner_
@@ -107,13 +107,14 @@ abstract contract GelatoUniV3PoolStorage is
             msg.sender == deployer,
             "GelatoUniV3PoolStorage.initialize: only deployer"
         );
-        _supplyCap = __supplyCap;
+        _supplyCap = _supplyCap_;
         _heartbeat = 1 days; // default: one day
         _minTickDeviation = 120; // default: ~1% price difference up and down
         _maxTickDeviation = 7000; // default: ~100% price difference up and down
         _observationSeconds = 5 minutes; // default: last five minutes;
         _maxSlippagePercentage = 5; //default: 5% slippage
         _autoWithdrawFeeBPS = 100; //default: only auto withdraw if tx fee is lt 1% amount withdrawn
+        _treasury = _owner; //default: treasury is admin
 
         _currentLowerTick = _lowerTick;
         _currentUpperTick = _upperTick;
@@ -147,46 +148,39 @@ abstract contract GelatoUniV3PoolStorage is
         _maxTickDeviation = newMaxTickDeviation;
     }
 
-    function updateObservationSeconds(uint32 newObservationSeconds)
-        external
-        onlyOwner
-    {
-        emit UpdateObservationSeconds(
+    function updateSlippageParams(
+        uint32 newObservationSeconds,
+        uint32 newMaxSlippagePercentage
+    ) external onlyOwner {
+        emit UpdateSlippageParams(
             _observationSeconds,
-            newObservationSeconds
-        );
-        _observationSeconds = newObservationSeconds;
-    }
-
-    function updateMaxSlippagePercentage(uint32 newMaxSlippagePercentage)
-        external
-        onlyOwner
-    {
-        emit UpdateMaxSlippagePercentage(
+            newObservationSeconds,
             _maxSlippagePercentage,
             newMaxSlippagePercentage
         );
+        _observationSeconds = newObservationSeconds;
         _maxSlippagePercentage = newMaxSlippagePercentage;
+    }
+
+    function updateFeeParams(uint256 newAdminFeeBPS, uint256 newWithdrawFeeBPS)
+        external
+        onlyOwner
+    {
+        require(newAdminFeeBPS <= 10000, "BPS must be below 10000");
+        require(newWithdrawFeeBPS <= 10000, "BPS must be below 10000");
+        emit UpdateFeeParams(
+            _adminFeeBPS,
+            newAdminFeeBPS,
+            _autoWithdrawFeeBPS,
+            newWithdrawFeeBPS
+        );
+        _adminFeeBPS = newAdminFeeBPS;
+        _autoWithdrawFeeBPS = newWithdrawFeeBPS;
     }
 
     function updateTreasury(address treasury) external onlyOwner {
         emit UpdateTreasury(_treasury, treasury);
         _treasury = treasury;
-    }
-
-    function updateAdminFee(uint256 newAdminFeeBPS) external onlyOwner {
-        require(newAdminFeeBPS <= 10000, "BPS must be below 10000");
-        emit UpdateAdminFee(_adminFeeBPS, newAdminFeeBPS);
-        _adminFeeBPS = newAdminFeeBPS;
-    }
-
-    function updateAutoWithdrawFee(uint256 newWithdrawFeeBPS)
-        external
-        onlyOwner
-    {
-        require(newWithdrawFeeBPS <= 10000, "BPS must be below 10000");
-        emit UpdateAutoWithdrawFee(_autoWithdrawFeeBPS, newWithdrawFeeBPS);
-        _autoWithdrawFeeBPS = newWithdrawFeeBPS;
     }
 
     function supplyCap() external view returns (uint256) {

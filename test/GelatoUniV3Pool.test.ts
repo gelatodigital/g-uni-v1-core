@@ -218,17 +218,10 @@ describe("GelatoUniV3Pools", function () {
         ).to.be.reverted;
 
         await expect(
-          gelatoUniV3Pool.connect(gelato).updateMaxSlippagePercentage(10)
+          gelatoUniV3Pool.connect(gelato).updateSlippageParams(600, 10)
         ).to.be.reverted;
 
-        await expect(
-          gelatoUniV3Pool.connect(gelato).updateObservationSeconds(600)
-        ).to.be.reverted;
-
-        await expect(gelatoUniV3Pool.connect(gelato).updateAdminFee(100)).to.be
-          .reverted;
-
-        await expect(gelatoUniV3Pool.connect(gelato).updateAutoWithdrawFee(100))
+        await expect(gelatoUniV3Pool.connect(gelato).updateFeeParams(100, 1000))
           .to.be.reverted;
       });
     });
@@ -521,7 +514,7 @@ describe("GelatoUniV3Pools", function () {
             .connect(user0)
             .updateSupplyCap(ethers.constants.MaxUint256);
           await gelatoUniV3Pool.connect(user0).updateHeartbeat("300");
-          await gelatoUniV3Pool.connect(user0).updateMaxSlippagePercentage("6");
+          await gelatoUniV3Pool.connect(user0).updateSlippageParams("300", "6");
           const tx = await gelatoUniV3Pool
             .connect(user0)
             .updateMaxTickDeviation("1000000");
@@ -671,7 +664,7 @@ describe("GelatoUniV3Pools", function () {
             .connect(user0)
             .updateSupplyCap(ethers.constants.MaxUint256);
           await gelatoUniV3Pool.connect(user0).updateHeartbeat("300");
-          await gelatoUniV3Pool.connect(user0).updateMaxSlippagePercentage("6");
+          await gelatoUniV3Pool.connect(user0).updateSlippageParams("300", "6");
           await gelatoUniV3Pool
             .connect(user0)
             .updateMaxTickDeviation("1000000");
@@ -687,8 +680,9 @@ describe("GelatoUniV3Pools", function () {
                 token0.address
               )
           ).to.be.reverted;
-          await gelatoUniV3Pool.connect(user0).updateAutoWithdrawFee(9000);
-          const tx = await gelatoUniV3Pool.connect(user0).updateAdminFee(5000);
+          const tx = await gelatoUniV3Pool
+            .connect(user0)
+            .updateFeeParams(5000, 9000);
           await tx.wait();
           if (network.provider && tx.blockHash && user0.provider) {
             const block = await user0.provider.getBlock(tx.blockHash);
