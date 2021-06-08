@@ -6,11 +6,11 @@ import { getAddresses } from "../src/addresses";
 const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   if (
     hre.network.name === "mainnet" ||
-    hre.network.name === "rinkeby" //||
-    //hre.network.name === "ropsten"
+    hre.network.name === "rinkeby" ||
+    hre.network.name === "ropsten"
   ) {
     console.log(
-      `!! Deploying GelatoUniV3Pool to mainnet/testnet. Hit ctrl + c to abort`
+      `!! Deploying GUniPoolStatic to mainnet. Hit ctrl + c to abort`
     );
     await new Promise((r) => setTimeout(r, 20000));
   }
@@ -24,14 +24,15 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     proxy: {
       proxyContract: "EIP173ProxyWithReceive",
     },
-    args: [addresses.WethDaiV3Pool, addresses.Gelato],
+    args: [addresses.WethUsdcV3Pool, addresses.Gelato],
   });
 };
 
 func.skip = async (hre: HardhatRuntimeEnvironment) => {
   const shouldSkip =
-    hre.network.name === "mainnet" || hre.network.name === "rinkeby"; //||
-  //hre.network.name === "ropsten";
+    hre.network.name === "mainnet" ||
+    hre.network.name === "rinkeby" ||
+    hre.network.name === "ropsten";
   return shouldSkip ? true : false;
 };
 
