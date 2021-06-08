@@ -27,7 +27,7 @@ export const getAddresses = (network: string): Addresses => {
       return {
         Gelato: "0xCc4CcD69D31F9FfDBD3BFfDe49c6aA886DaB98d9",
         WethDaiV3Pool: "0x25D0Ea8FAc3Ce2313c6a478DA92e0ccf95213B1A",
-        GUNIV3: "0xA49eD4E312aC5911C4fF391a20131F86Fc43845A",
+        GUNIV3: "0x706ce812d30463b3ACD61Ff933A44c4c6109675f",
         Swapper: "0x2E185412E2aF7DC9Ed28359Ea3193EBAd7E929C6",
         GelatoAdmin: "0xD90fC89e89E3E5b75256b5aA617f887C583b29a2",
         WETH: "0xc778417E063141139Fce010982780140Aa0cD5Ab",

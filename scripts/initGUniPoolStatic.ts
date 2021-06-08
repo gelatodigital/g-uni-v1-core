@@ -6,14 +6,14 @@ const addresses = getAddresses(network.name);
 
 const op = async (signer: SignerWithAddress) => {
   const gelatoUniV3Pool = await ethers.getContractAt(
-    "GelatoUniV3Pool",
+    "GUniPoolStatic",
     addresses.GUNIV3,
     signer
   );
   await gelatoUniV3Pool.initialize(
     ethers.utils.parseEther("20000"),
-    -78900,
-    -77100,
+    -36000,
+    -30000,
     await signer.getAddress(),
     { gasLimit: 1000000 }
   );
