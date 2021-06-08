@@ -6,8 +6,8 @@ import { getAddresses } from "../src/addresses";
 const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   if (
     hre.network.name === "mainnet" ||
-    hre.network.name === "rinkeby" ||
-    hre.network.name === "ropsten"
+    hre.network.name === "rinkeby" //||
+    //hre.network.name === "ropsten"
   ) {
     console.log(
       `!! Deploying GelatoUniV3Pool to mainnet/testnet. Hit ctrl + c to abort`
@@ -19,7 +19,7 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   const { deployer } = await getNamedAccounts();
   const addresses = getAddresses(hre.network.name);
 
-  await deploy("GelatoUniV3Pool", {
+  await deploy("GUniPoolStatic", {
     from: deployer,
     proxy: {
       proxyContract: "EIP173ProxyWithReceive",
@@ -30,12 +30,11 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
 
 func.skip = async (hre: HardhatRuntimeEnvironment) => {
   const shouldSkip =
-    hre.network.name === "mainnet" ||
-    hre.network.name === "rinkeby" ||
-    hre.network.name === "ropsten";
+    hre.network.name === "mainnet" || hre.network.name === "rinkeby"; //||
+  //hre.network.name === "ropsten";
   return shouldSkip ? true : false;
 };
 
-func.tags = ["GelatoUniV3Pool"];
+func.tags = ["GUniPoolStatic"];
 
 export default func;

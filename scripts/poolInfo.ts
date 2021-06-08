@@ -49,7 +49,7 @@ function getCounterfactualFees(
 
 const op = async (signer: SignerWithAddress) => {
   const gelatoUniV3Pool = await ethers.getContractAt(
-    "GelatoUniV3Pool",
+    "GUniPoolStatic",
     addresses.GUNIV3
   );
   const abi = (await hre.artifacts.readArtifact("IUniswapV3Pool"))["abi"];
