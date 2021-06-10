@@ -20,7 +20,6 @@ import {
     FullMath,
     LiquidityAmounts
 } from "./vendor/uniswap/LiquidityAmounts.sol";
-import "hardhat/console.sol";
 
 /// @dev DO NOT ADD STATE VARIABLES - APPEND THEM TO GelatoUniV3PoolStorage
 /// @dev DO NOT ADD BASE CONTRACTS WITH STATE VARS - APPEND THEM TO GelatoUniV3PoolStorage
@@ -105,7 +104,7 @@ contract GUniPoolStatic is
 
         require(
             _supplyCap >= totalSupply + mintAmount,
-            "GelatoUniV3Pool.mint: _supplyCap"
+            "cannot mint above supply cap"
         );
 
         (uint160 sqrtRatioX96, , , , , , ) = pool.slot0();
