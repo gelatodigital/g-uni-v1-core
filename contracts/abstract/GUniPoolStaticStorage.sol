@@ -94,7 +94,7 @@ abstract contract GUniPoolStaticStorage is
         _maxSlippageBPS = 500; // default: 5% slippage
         _autoWithdrawFeeBPS = 100; // default: only auto withdraw if tx fee is lt 1% withdrawn
         _rebalanceFeeBPS = 1000; // default: only rebalance if tx fee is lt 10% reinvested
-        _treasury = _owner; // default: treasury is admin
+        _treasury = _owner_; // default: treasury is admin
 
         _lowerTick = _lowerTick_;
         _upperTick = _upperTick_;
