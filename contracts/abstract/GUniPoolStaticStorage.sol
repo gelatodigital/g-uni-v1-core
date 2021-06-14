@@ -34,20 +34,18 @@ abstract contract GUniPoolStaticStorage is
     IERC20 public immutable token1;
 
     // XXXXXXXX DO NOT MODIFY ORDERING XXXXXXXX
-    uint256 internal _supplyCap;
-    uint32 internal _observationSeconds;
     uint16 internal _maxSlippageBPS;
-
-    int24 internal _lowerTick;
-    int24 internal _upperTick;
-
-    uint256 internal _adminBalanceToken0;
-    uint256 internal _adminBalanceToken1;
     uint16 internal _adminFeeBPS;
     uint16 internal _rebalanceFeeBPS;
     uint16 internal _autoWithdrawFeeBPS;
+    int24 internal _lowerTick;
+    int24 internal _upperTick;
+    uint32 internal _observationSeconds;
     address internal _treasury;
 
+    uint256 internal _adminBalanceToken0;
+    uint256 internal _adminBalanceToken1;
+    uint256 internal _supplyCap;
     // APPPEND ADDITIONAL STATE VARS BELOW:
 
     // XXXXXXXX DO NOT MODIFY ORDERING XXXXXXXX

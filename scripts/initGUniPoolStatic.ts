@@ -7,7 +7,7 @@ const addresses = getAddresses(network.name);
 const op = async (signer: SignerWithAddress) => {
   const gelatoUniV3Pool = await ethers.getContractAt(
     "GUniPoolStatic",
-    addresses.GUNIWethUsdc,
+    addresses.GUNIWethInst,
     signer
   );
   await gelatoUniV3Pool.initialize(

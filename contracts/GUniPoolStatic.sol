@@ -58,21 +58,12 @@ contract GUniPoolStatic is
     function uniswapV3MintCallback(
         uint256 _amount0Owed,
         uint256 _amount1Owed,
-        bytes calldata _data
+        bytes calldata /*_data*/
     ) external override {
         require(msg.sender == address(pool));
 
-        address sender = abi.decode(_data, (address));
-
-        if (sender == address(this)) {
-            if (_amount0Owed > 0) token0.safeTransfer(msg.sender, _amount0Owed);
-            if (_amount1Owed > 0) token1.safeTransfer(msg.sender, _amount1Owed);
-        } else {
-            if (_amount0Owed > 0)
-                token0.safeTransferFrom(sender, msg.sender, _amount0Owed);
-            if (_amount1Owed > 0)
-                token1.safeTransferFrom(sender, msg.sender, _amount1Owed);
-        }
+        if (_amount0Owed > 0) token0.safeTransfer(msg.sender, _amount0Owed);
+        if (_amount1Owed > 0) token1.safeTransfer(msg.sender, _amount1Owed);
     }
 
     function uniswapV3SwapCallback(
@@ -149,13 +140,7 @@ contract GUniPoolStatic is
             token0.balanceOf(address(this)) - _adminBalanceToken0,
             token1.balanceOf(address(this)) - _adminBalanceToken1
         );
-        pool.mint(
-            address(this),
-            _lowerTick,
-            _upperTick,
-            liquidityMinted,
-            abi.encode(address(this))
-        );
+        pool.mint(address(this), _lowerTick, _upperTick, liquidityMinted, "");
 
         _mint(receiver, mintAmount);
         emit Minted(receiver, mintAmount, amount0, amount1, liquidityMinted);
@@ -564,7 +549,7 @@ contract GUniPoolStatic is
                     _lowerTick,
                     _upperTick,
                     baseLiquidity,
-                    abi.encode(address(this))
+                    ""
                 );
 
             _amount0 -= amountDeposited0;
@@ -628,7 +613,7 @@ contract GUniPoolStatic is
                 _lowerTick,
                 _upperTick,
                 liquidityAfterSwap,
-                abi.encode(address(this))
+                ""
             );
         }
     }
