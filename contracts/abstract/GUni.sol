@@ -9,7 +9,7 @@ import {
 /// @dev DO NOT ADD STATE VARIABLES - APPEND THEM TO GelatoUniV3PoolStorage
 /// @dev DO NOT ADD BASE CONTRACTS WITH STATE VARS - APPEND THEM TO GelatoUniV3PoolStorage
 abstract contract GUni is ERC20Permit {
-    string private constant _NAME = "Gelato Uniswap V3 USDC/ETH LP";
+    string private constant _NAME = "Gelato Uniswap V3 INST/ETH LP";
     string private constant _SYMBOL = "G-UNI";
     uint8 private constant _DECIMALS = 18;
 

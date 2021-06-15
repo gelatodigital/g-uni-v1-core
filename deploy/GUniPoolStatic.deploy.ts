@@ -24,7 +24,7 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     proxy: {
       proxyContract: "EIP173ProxyWithReceive",
     },
-    args: [addresses.WethUsdcV3Pool, addresses.Gelato],
+    args: [addresses.WethInstV3Pool, addresses.Gelato],
   });
 };
 
