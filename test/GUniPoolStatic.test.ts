@@ -137,6 +137,7 @@ describe("GUniPoolStatic", function () {
           ethers.utils.parseEther("1")
         );
         await gUniPoolStatic.mint(result.mintAmount, await user0.getAddress());
+
         expect(await token0.balanceOf(uniswapPool.address)).to.be.gt(0);
         expect(await token1.balanceOf(uniswapPool.address)).to.be.gt(0);
         const [liquidity] = await uniswapPool.positions(
@@ -563,6 +564,7 @@ describe("GUniPoolStatic", function () {
           const intermediateBalanceG = await gUniPoolStatic.balanceOf(
             await user2.getAddress()
           );
+          
           expect(preBalance0.sub(intermediateBalance0)).to.equal(
             mintAmounts.amount0
           );
