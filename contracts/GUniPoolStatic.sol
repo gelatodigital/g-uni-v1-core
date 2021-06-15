@@ -45,7 +45,7 @@ contract GUniPoolStatic is
         uint256 burnAmount,
         uint256 amount0Out,
         uint256 amount1Out,
-        uint128 newLiquidity
+        uint128 liquidityBurned
     );
 
     event Rebalance(int24 lowerTick, int24 upperTick);
@@ -93,11 +93,11 @@ contract GUniPoolStatic is
 
         uint256 totalSupply = totalSupply();
 
-        (uint160 sqrtRatioX96, int24 tick, , , , , ) = pool.slot0();
+        (uint160 sqrtRatioX96, , , , , , ) = pool.slot0();
 
         if (totalSupply > 0) {
             (uint256 amount0Current, uint256 amount1Current) =
-                _getCurrentAmounts(sqrtRatioX96, tick);
+                getUnderlyingBalances();
 
             amount0 = FullMath.mulDivRoundingUp(
                 amount0Current,
@@ -135,13 +135,7 @@ contract GUniPoolStatic is
             token0.balanceOf(address(this)) - _adminBalanceToken0,
             token1.balanceOf(address(this)) - _adminBalanceToken1
         );
-        pool.mint(
-            address(this),
-            _lowerTick,
-            _upperTick,
-            liquidityMinted,
-            ""
-        );
+        pool.mint(address(this), _lowerTick, _upperTick, liquidityMinted, "");
 
         _mint(receiver, mintAmount);
         emit Minted(receiver, mintAmount, amount0, amount1, liquidityMinted);
@@ -154,37 +148,45 @@ contract GUniPoolStatic is
         returns (
             uint256 amount0,
             uint256 amount1,
-            uint128 totalLiquidity
+            uint128 liquidityBurned
         )
     {
         require(_burnAmount > 0);
+
         uint256 totalSupply = totalSupply();
-        _burn(msg.sender, _burnAmount);
 
         (uint128 liquidity, , , , ) = pool.positions(_getPositionID());
 
-        pool.burn(_lowerTick, _upperTick, liquidity);
+        _burn(msg.sender, _burnAmount);
 
-        pool.collect(
-            address(this),
-            _lowerTick,
-            _upperTick,
-            type(uint128).max,
-            type(uint128).max
-        );
+        uint256 _liquidityBurned_ =
+            FullMath.mulDiv(_burnAmount, liquidity, totalSupply);
+        require(_liquidityBurned_ < type(uint128).max);
+        liquidityBurned = uint128(_liquidityBurned_);
+
+        uint256 preBalance0 = token0.balanceOf(address(this));
+        uint256 preBalance1 = token1.balanceOf(address(this));
+        uint256 leftoverShare0 =
+            FullMath.mulDiv(
+                _burnAmount,
+                preBalance0 - _adminBalanceToken0,
+                totalSupply
+            );
+        uint256 leftoverShare1 =
+            FullMath.mulDiv(
+                _burnAmount,
+                preBalance1 - _adminBalanceToken1,
+                totalSupply
+            );
+
+        _burnAndCollect(_burnAmount, totalSupply, liquidityBurned);
 
         amount0 =
-            FullMath.mulDiv(
-                _burnAmount,
-                token0.balanceOf(address(this)) - _adminBalanceToken0,
-                totalSupply
-            );
+            (token0.balanceOf(address(this)) - preBalance0) +
+            leftoverShare0;
         amount1 =
-            FullMath.mulDiv(
-                _burnAmount,
-                token1.balanceOf(address(this)) - _adminBalanceToken1,
-                totalSupply
-            );
+            (token1.balanceOf(address(this)) - preBalance1) +
+            leftoverShare1;
 
         if (amount0 > 0) {
             token0.safeTransfer(_receiver, amount0);
@@ -194,17 +196,7 @@ contract GUniPoolStatic is
             token1.safeTransfer(_receiver, amount1);
         }
 
-        (uint160 sqrtRatioX96, , , , , , ) = pool.slot0();
-        totalLiquidity = LiquidityAmounts.getLiquidityForAmounts(
-            sqrtRatioX96,
-            _lowerTick.getSqrtRatioAtTick(),
-            _upperTick.getSqrtRatioAtTick(),
-            token0.balanceOf(address(this)) - _adminBalanceToken0,
-            token1.balanceOf(address(this)) - _adminBalanceToken1
-        );
-        pool.mint(address(this), _lowerTick, _upperTick, totalLiquidity, "");
-
-        emit Burned(_receiver, _burnAmount, amount0, amount1, totalLiquidity);
+        emit Burned(_receiver, _burnAmount, amount0, amount1, liquidityBurned);
     }
 
     function rebalance(
@@ -256,19 +248,6 @@ contract GUniPoolStatic is
         emit Rebalance(_newLowerTick, _newUpperTick);
     }
 
-    function withdrawAdminBalance() external nonReentrant {
-        if (_adminBalanceToken0 > 0) {
-            uint256 amountToSend0 = _adminBalanceToken0;
-            _adminBalanceToken0 = 0;
-            token0.safeTransfer(_treasury, amountToSend0);
-        }
-        if (_adminBalanceToken1 > 0) {
-            uint256 amountToSend1 = _adminBalanceToken1;
-            _adminBalanceToken1 = 0;
-            token1.safeTransfer(_treasury, amountToSend1);
-        }
-    }
-
     function autoWithdrawAdminBalance(uint256 feeAmount, address feeToken)
         external
         gelatofy(feeAmount, feeToken)
@@ -318,16 +297,14 @@ contract GUniPoolStatic is
         )
     {
         uint256 totalSupply = totalSupply();
-        (uint160 sqrtRatioX96, int24 tick, , , , , ) = pool.slot0();
         if (totalSupply > 0) {
             (amount0, amount1, mintAmount) = _computeMintAmounts(
-                sqrtRatioX96,
-                tick,
                 totalSupply,
                 amount0Max,
                 amount1Max
             );
         } else {
+            (uint160 sqrtRatioX96, , , , , , ) = pool.slot0();
             uint128 newLiquidity =
                 LiquidityAmounts.getLiquidityForAmounts(
                     sqrtRatioX96,
@@ -348,8 +325,6 @@ contract GUniPoolStatic is
 
     // solhint-disable-next-line function-max-lines, code-complexity
     function _computeMintAmounts(
-        uint160 sqrtRatioX96,
-        int24 tick,
         uint256 totalSupply,
         uint256 amount0Max,
         uint256 amount1Max
@@ -363,7 +338,7 @@ contract GUniPoolStatic is
         )
     {
         (uint256 amount0Current, uint256 amount1Current) =
-            _getCurrentAmounts(sqrtRatioX96, tick);
+            getUnderlyingBalances();
 
         // compute proportional amount of tokens to mint
         if (amount0Current == 0 && amount1Current > 0) {
@@ -406,8 +381,8 @@ contract GUniPoolStatic is
     }
 
     // solhint-disable-next-line function-max-lines
-    function _getCurrentAmounts(uint160 sqrtRatioX96, int24 tick)
-        internal
+    function getUnderlyingBalances()
+        public
         view
         returns (uint256 amount0Current, uint256 amount1Current)
     {
@@ -419,6 +394,8 @@ contract GUniPoolStatic is
             uint128 tokensOwed1
         ) = pool.positions(_getPositionID());
 
+        (uint160 sqrtRatioX96, int24 tick, , , , , ) = pool.slot0();
+
         // compute current holdings from liquidity
         (amount0Current, amount1Current) = LiquidityAmounts
             .getAmountsForLiquidity(
@@ -429,25 +406,21 @@ contract GUniPoolStatic is
         );
 
         // compute current fees earned
-        uint256 fee0 = _computeFeesEarned(
-            true,
-            feeGrowthInside0Last,
-            tick,
-            _liquidity
-        );
-        uint256 fee1 = _computeFeesEarned(
-            false,
-            feeGrowthInside1Last,
-            tick,
-            _liquidity
-        );
+        uint256 fee0 =
+            _computeFeesEarned(true, feeGrowthInside0Last, tick, _liquidity);
+        uint256 fee1 =
+            _computeFeesEarned(false, feeGrowthInside1Last, tick, _liquidity);
 
         // add any leftover in contract to current holdings
         amount0Current +=
-            fee0 + uint256(tokensOwed0) + token0.balanceOf(address(this)) -
+            fee0 +
+            uint256(tokensOwed0) +
+            token0.balanceOf(address(this)) -
             _adminBalanceToken0;
         amount1Current +=
-            fee1 + uint256(tokensOwed1) + token1.balanceOf(address(this)) -
+            fee1 +
+            uint256(tokensOwed1) +
+            token1.balanceOf(address(this)) -
             _adminBalanceToken1;
     }
 
@@ -457,26 +430,18 @@ contract GUniPoolStatic is
         uint256 feeGrowthInsideLast,
         int24 tick,
         uint128 _liquidity
-    )
-        internal
-        view
-        returns (uint256 fee)
-    {
+    ) internal view returns (uint256 fee) {
         uint256 feeGrowthOutsideLower;
         uint256 feeGrowthOutsideUpper;
         uint256 feeGrowthGlobal;
         if (isZero) {
             feeGrowthGlobal = pool.feeGrowthGlobal0X128();
-            (,,feeGrowthOutsideLower,,,,,) =
-                pool.ticks(_lowerTick);
-            (,,feeGrowthOutsideUpper,,,,,) =
-                pool.ticks(_upperTick);
+            (, , feeGrowthOutsideLower, , , , , ) = pool.ticks(_lowerTick);
+            (, , feeGrowthOutsideUpper, , , , , ) = pool.ticks(_upperTick);
         } else {
             feeGrowthGlobal = pool.feeGrowthGlobal1X128();
-            (,,,feeGrowthOutsideLower,,,,) =
-                pool.ticks(_lowerTick);
-            (,,,feeGrowthOutsideUpper,,,,) =
-                pool.ticks(_upperTick);
+            (, , , feeGrowthOutsideLower, , , , ) = pool.ticks(_lowerTick);
+            (, , , feeGrowthOutsideUpper, , , , ) = pool.ticks(_upperTick);
         }
 
         // calculate fee growth below
@@ -495,11 +460,44 @@ contract GUniPoolStatic is
             feeGrowthAbove = feeGrowthGlobal - feeGrowthOutsideUpper;
         }
 
-        uint256 feeGrowthInside = feeGrowthGlobal - feeGrowthBelow - feeGrowthAbove;
+        uint256 feeGrowthInside =
+            feeGrowthGlobal - feeGrowthBelow - feeGrowthAbove;
         fee = FullMath.mulDiv(
             _liquidity,
-            feeGrowthInside-feeGrowthInsideLast,
+            feeGrowthInside - feeGrowthInsideLast,
             0x100000000000000000000000000000000
+        );
+    }
+
+    function _burnAndCollect(
+        uint256 _burnAmount,
+        uint256 _supply,
+        uint128 liquidityBurned
+    ) private {
+        (uint256 burn0, uint256 burn1) =
+            pool.burn(_lowerTick, _upperTick, liquidityBurned);
+
+        (, , , uint128 tokensOwed0, uint128 tokensOwed1) =
+            pool.positions(_getPositionID());
+
+        burn0 += FullMath.mulDiv(
+            _burnAmount,
+            uint256(tokensOwed0) - burn0,
+            _supply
+        );
+        burn1 += FullMath.mulDiv(
+            _burnAmount,
+            uint256(tokensOwed1) - burn1,
+            _supply
+        );
+
+        // Withdraw tokens to user
+        pool.collect(
+            address(this),
+            _lowerTick,
+            _upperTick,
+            uint128(burn0), // cast can't overflow
+            uint128(burn1) // cast can't overflow
         );
     }
 
