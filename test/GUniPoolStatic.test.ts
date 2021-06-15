@@ -447,10 +447,10 @@ describe("GUniPoolStatic", function () {
             const balanceAfterBurn1 = await token0.balanceOf(user2Address);
             expect(
               ethers.utils.parseEther("1000").sub(balanceAfterBurn1.toString())
-            ).to.be.lte(ethers.BigNumber.from("1"));
+            ).to.be.lte(ethers.BigNumber.from("2"));
             expect(
               ethers.utils.parseEther("1000").sub(balanceAfterBurn0.toString())
-            ).to.be.lte(ethers.BigNumber.from("1"));
+            ).to.be.lte(ethers.BigNumber.from("2"));
             expect(
               ethers.utils.parseEther("1000").sub(balanceAfterBurn1.toString())
             ).to.be.gte(ethers.constants.Zero);

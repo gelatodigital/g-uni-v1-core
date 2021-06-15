@@ -89,21 +89,13 @@ contract GUniPoolStatic is
             uint128 liquidityMinted
         )
     {
-        require(mintAmount > 0, "mint amount must be gt 0");
-
         uint256 totalSupply = totalSupply();
 
-        require(
-            _supplyCap >= totalSupply + mintAmount,
-            "cannot mint above supply cap"
-        );
-
         (uint160 sqrtRatioX96, , , , , , ) = pool.slot0();
-
+        uint256 amount0Current;
+        uint256 amount1Current;
         if (totalSupply > 0) {
-            (uint256 amount0Current, uint256 amount1Current) =
-                _getCurrentAmounts(sqrtRatioX96);
-
+            (amount0Current, amount1Current) = _getCurrentAmounts(sqrtRatioX96);
             amount0 = FullMath.mulDivRoundingUp(
                 amount0Current,
                 mintAmount,
@@ -142,6 +134,31 @@ contract GUniPoolStatic is
         );
         pool.mint(address(this), _lowerTick, _upperTick, liquidityMinted, "");
 
+        if (totalSupply > 0) {
+            (, , , uint128 tokensOwed0, uint128 tokensOwed1) =
+                pool.positions(_getPositionID());
+            uint256 mintAmount0 =
+                FullMath.mulDiv(
+                    amount0,
+                    totalSupply,
+                    amount0Current + uint256(tokensOwed0)
+                );
+            uint256 mintAmount1 =
+                FullMath.mulDiv(
+                    amount1,
+                    totalSupply,
+                    amount1Current + uint256(tokensOwed1)
+                );
+            mintAmount = mintAmount0 < mintAmount1 ? mintAmount0 : mintAmount1;
+        }
+
+        require(mintAmount > 0, "mint amount must be gt 0");
+
+        require(
+            _supplyCap >= totalSupply + mintAmount,
+            "cannot mint above supply cap"
+        );
+
         _mint(receiver, mintAmount);
         emit Minted(receiver, mintAmount, amount0, amount1, liquidityMinted);
     }
@@ -166,7 +183,7 @@ contract GUniPoolStatic is
 
         uint256 _liquidityBurned_ =
             FullMath.mulDiv(_burnAmount, liquidity, totalSupply);
-        require(_liquidityBurned_ < type(uint128).max);
+        require(_liquidityBurned_ < type(uint128).max, "overflow");
         liquidityBurned = uint128(_liquidityBurned_);
 
         uint256 preBalance0 = token0.balanceOf(address(this));
@@ -184,17 +201,7 @@ contract GUniPoolStatic is
                 totalSupply
             );
 
-        (uint256 burn0, uint256 burn1) =
-            pool.burn(_lowerTick, _upperTick, liquidityBurned);
-
-        // Withdraw tokens to user
-        pool.collect(
-            address(this),
-            _lowerTick,
-            _upperTick,
-            uint128(burn0), // cast can't overflow
-            uint128(burn1) // cast can't overflow
-        );
+        _burnAndCollect(_burnAmount, totalSupply, liquidityBurned);
 
         amount0 =
             (token0.balanceOf(address(this)) - preBalance0) +
@@ -521,6 +528,38 @@ contract GUniPoolStatic is
             token1.balanceOf(address(this)) -
             preBalance1 -
             amount1Burned;
+    }
+
+    function _burnAndCollect(
+        uint256 _burnAmount,
+        uint256 _supply,
+        uint128 liquidityBurned
+    ) private {
+        (uint256 burn0, uint256 burn1) =
+            pool.burn(_lowerTick, _upperTick, liquidityBurned);
+
+        (, , , uint128 tokensOwed0, uint128 tokensOwed1) =
+            pool.positions(_getPositionID());
+
+        burn0 += FullMath.mulDiv(
+            _burnAmount,
+            uint256(tokensOwed0) - burn0,
+            _supply
+        );
+        burn1 += FullMath.mulDiv(
+            _burnAmount,
+            uint256(tokensOwed1) - burn1,
+            _supply
+        );
+
+        // Withdraw tokens to user
+        pool.collect(
+            address(this),
+            _lowerTick,
+            _upperTick,
+            uint128(burn0), // cast can't overflow
+            uint128(burn1) // cast can't overflow
+        );
     }
 
     // solhint-disable-next-line function-max-lines
