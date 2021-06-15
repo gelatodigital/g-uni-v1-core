@@ -111,12 +111,12 @@ contract GUniPoolStatic is
             );
 
             amount0 = FullMath.mulDivRoundingUp(
-                token0.balanceOf(address(this)) - _adminBalanaceToken0,
+                token0.balanceOf(address(this)) - _adminBalanceToken0,
                 mintAmount,
                 totalSupply
             );
             amount1 = FullMath.mulDivRoundingUp(
-                token1.balanceOf(address(this)) - _adminBalanaceToken1,
+                token1.balanceOf(address(this)) - _adminBalanceToken1,
                 mintAmount,
                 totalSupply
             );
@@ -139,17 +139,17 @@ contract GUniPoolStatic is
         }
 
         // deposit as much new liquidity as possible
-        liquidityMinted = LiquidityAmounts.getLiquidityForAmounts(
+        totalLiquidity = LiquidityAmounts.getLiquidityForAmounts(
             sqrtRatioX96,
             _lowerTick.getSqrtRatioAtTick(),
             _upperTick.getSqrtRatioAtTick(),
             token0.balanceOf(address(this)) - _adminBalanceToken0,
             token1.balanceOf(address(this)) - _adminBalanceToken1
         );
-        pool.mint(address(this), _lowerTick, _upperTick, liquidityMinted, "");
+        pool.mint(address(this), _lowerTick, _upperTick, totalLiquidity, "");
 
         _mint(receiver, mintAmount);
-        emit Minted(receiver, mintAmount, amount0, amount1, liquidityMinted);
+        emit Minted(receiver, mintAmount, amount0, amount1, totalLiquidity);
     }
 
     // solhint-disable-next-line function-max-lines
@@ -199,16 +199,17 @@ contract GUniPoolStatic is
             token1.safeTransfer(_receiver, amount1);
         }
 
-        liquidityMinted = LiquidityAmounts.getLiquidityForAmounts(
+        (uint160 sqrtRatioX96, , , , , , ) = pool.slot0();
+        totalLiquidity = LiquidityAmounts.getLiquidityForAmounts(
             sqrtRatioX96,
             _lowerTick.getSqrtRatioAtTick(),
             _upperTick.getSqrtRatioAtTick(),
             token0.balanceOf(address(this)) - _adminBalanceToken0,
             token1.balanceOf(address(this)) - _adminBalanceToken1
         );
-        pool.mint(address(this), _lowerTick, _upperTick, liquidityMinted, "");
+        pool.mint(address(this), _lowerTick, _upperTick, totalLiquidity, "");
 
-        emit Burned(_receiver, _burnAmount, amount0, amount1, liquidityBurned);
+        emit Burned(_receiver, _burnAmount, amount0, amount1, totalLiquidity);
     }
 
     function rebalance(
@@ -458,34 +459,22 @@ contract GUniPoolStatic is
         view
         returns (uint256 fee0, uint256 fee1)
     {
-        uint256 feeGrowthGlobal0 = pool.feeGrowthGlobal0X128();
-        uint256 feeGrowthGlobal1 = pool.feeGrowthGlobal1X128();
-        (,,uint256 feeGrowthOutside0Lower, uint256 feeGrowthOutside1Lower,,,,) =
-            pool.ticks(_lowerTick);
-        (,,uint256 feeGrowthOutside0Upper, uint256 feeGrowthOutside1Upper,,,,) =
-            pool.ticks(_lowerTick);
-        fee0 = _computeFeeGrowth(
-            feeGrowthGlobal0,
-            feeGrowthOutside0Lower,
-            feeGrowthOutside0Upper,
+        fee0 = _computeFeesEarned(
+            true,
             feeGrowthInside0Last,
             tick,
             _liquidity
         );
-        fee1 = _computeFeeGrowth(
-            feeGrowthGlobal1,
-            feeGrowthOutside1Lower,
-            feeGrowthOutside1Upper,
+        fee1 = _computeFeesEarned(
+            false,
             feeGrowthInside1Last,
             tick,
             _liquidity
         );
     }
 
-    function _computeFeeGrowth(
-        uint256 feeGrowthGlobal,
-        uint256 feeGrowthOutsideLower,
-        uint256 feeGrowthOutsideUpper,
+    function _computeFeesEarned(
+        bool isZero,
         uint256 feeGrowthInsideLast,
         int24 tick,
         uint128 _liquidity
@@ -494,7 +483,45 @@ contract GUniPoolStatic is
         view
         returns (uint256 fee)
     {
-        // TODO: off-chain logic
+        uint256 feeGrowthOutsideLower;
+        uint256 feeGrowthOutsideUpper;
+        uint256 feeGrowthGlobal;
+        if (isZero) {
+            feeGrowthGlobal = pool.feeGrowthGlobal0X128();
+            (,,feeGrowthOutsideLower,,,,,) =
+                pool.ticks(_lowerTick);
+            (,,feeGrowthOutsideUpper,,,,,) =
+                pool.ticks(_upperTick);
+        } else {
+            feeGrowthGlobal = pool.feeGrowthGlobal1X128();
+            (,,,feeGrowthOutsideLower,,,,) =
+                pool.ticks(_lowerTick);
+            (,,,feeGrowthOutsideUpper,,,,) =
+                pool.ticks(_upperTick);
+        }
+
+        // calculate fee growth below
+        uint256 feeGrowthBelow;
+        if (tick >= _lowerTick) {
+            feeGrowthBelow = feeGrowthOutsideLower;
+        } else {
+            feeGrowthBelow = feeGrowthGlobal - feeGrowthOutsideLower;
+        }
+
+        // calculate fee growth above
+        uint256 feeGrowthAbove;
+        if (tick < _upperTick) {
+            feeGrowthAbove = feeGrowthOutsideUpper;
+        } else {
+            feeGrowthAbove = feeGrowthGlobal - feeGrowthOutsideUpper;
+        }
+
+        uint256 feeGrowthInside = feeGrowthGlobal - feeGrowthBelow - feeGrowthAbove;
+        fee = FullMath.mulDiv(
+            _liquidity,
+            feeGrowthInside-feeGrowthInsideLast,
+            0x100000000000000000000000000000000
+        );
     }
 
     // solhint-disable-next-line function-max-lines
