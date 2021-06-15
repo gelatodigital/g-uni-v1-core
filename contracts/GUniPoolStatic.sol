@@ -37,7 +37,7 @@ contract GUniPoolStatic is
         uint256 mintAmount,
         uint256 amount0In,
         uint256 amount1In,
-        uint128 totalLiquidity
+        uint128 liquidityMinted
     );
 
     event Burned(
@@ -45,7 +45,7 @@ contract GUniPoolStatic is
         uint256 burnAmount,
         uint256 amount0Out,
         uint256 amount1Out,
-        uint128 totalLiquidity
+        uint128 newLiquidity
     );
 
     event Rebalance(int24 lowerTick, int24 upperTick);
@@ -86,37 +86,26 @@ contract GUniPoolStatic is
         returns (
             uint256 amount0,
             uint256 amount1,
-            uint128 totalLiquidity
+            uint128 liquidityMinted
         )
     {
         require(mintAmount > 0, "mint amount must be gt 0");
+
         uint256 totalSupply = totalSupply();
-        require(
-            _supplyCap >= totalSupply + mintAmount,
-            "cannot mint above supply cap"
-        );
 
-        (uint160 sqrtRatioX96, , , , , , ) = pool.slot0();
+        (uint160 sqrtRatioX96, int24 tick, , , , , ) = pool.slot0();
+
         if (totalSupply > 0) {
-            (uint128 liquidity, , , , ) = pool.positions(_getPositionID());
-
-            pool.burn(_lowerTick, _upperTick, liquidity);
-
-            pool.collect(
-                address(this),
-                _lowerTick,
-                _upperTick,
-                type(uint128).max,
-                type(uint128).max
-            );
+            (uint256 amount0Current, uint256 amount1Current) =
+                _getCurrentAmounts(sqrtRatioX96, tick);
 
             amount0 = FullMath.mulDivRoundingUp(
-                token0.balanceOf(address(this)) - _adminBalanceToken0,
+                amount0Current,
                 mintAmount,
                 totalSupply
             );
             amount1 = FullMath.mulDivRoundingUp(
-                token1.balanceOf(address(this)) - _adminBalanceToken1,
+                amount1Current,
                 mintAmount,
                 totalSupply
             );
@@ -139,17 +128,23 @@ contract GUniPoolStatic is
         }
 
         // deposit as much new liquidity as possible
-        totalLiquidity = LiquidityAmounts.getLiquidityForAmounts(
+        liquidityMinted = LiquidityAmounts.getLiquidityForAmounts(
             sqrtRatioX96,
             _lowerTick.getSqrtRatioAtTick(),
             _upperTick.getSqrtRatioAtTick(),
             token0.balanceOf(address(this)) - _adminBalanceToken0,
             token1.balanceOf(address(this)) - _adminBalanceToken1
         );
-        pool.mint(address(this), _lowerTick, _upperTick, totalLiquidity, "");
+        pool.mint(
+            address(this),
+            _lowerTick,
+            _upperTick,
+            liquidityMinted,
+            ""
+        );
 
         _mint(receiver, mintAmount);
-        emit Minted(receiver, mintAmount, amount0, amount1, totalLiquidity);
+        emit Minted(receiver, mintAmount, amount0, amount1, liquidityMinted);
     }
 
     // solhint-disable-next-line function-max-lines
@@ -284,7 +279,7 @@ contract GUniPoolStatic is
             require(
                 (_adminBalanceToken0 * _autoWithdrawFeeBPS) / 10000 >=
                     feeAmount,
-                "only withdraw after enough fees accrued"
+                "BTL"
             );
             amount0 = _adminBalanceToken0 - feeAmount;
             _adminBalanceToken0 = 0;
@@ -294,14 +289,14 @@ contract GUniPoolStatic is
             require(
                 (_adminBalanceToken1 * _autoWithdrawFeeBPS) / 10000 >=
                     feeAmount,
-                "only withdraw after enough fees accrued"
+                "BTL"
             );
             amount1 = _adminBalanceToken1 - feeAmount;
             _adminBalanceToken1 = 0;
             amount0 = _adminBalanceToken0;
             _adminBalanceToken0 = 0;
         } else {
-            revert("feeToken must be a pool asset");
+            revert("FTW");
         }
 
         if (amount0 > 0) {
@@ -384,14 +379,14 @@ contract GUniPoolStatic is
                 amount0Current
             );
         } else if (amount0Current == 0 && amount1Current == 0) {
-            revert("impossible: internal error");
+            revert("");
         } else {
             // only if both are non-zero
             uint256 amount0Mint =
                 FullMath.mulDiv(amount0Max, totalSupply, amount0Current);
             uint256 amount1Mint =
                 FullMath.mulDiv(amount1Max, totalSupply, amount1Current);
-            require(amount0Mint > 0 && amount1Mint > 0, "cannot mint 0 tokens");
+            require(amount0Mint > 0 && amount1Mint > 0, "ZM");
 
             mintAmount = amount0Mint < amount1Mint ? amount0Mint : amount1Mint;
         }
@@ -410,6 +405,7 @@ contract GUniPoolStatic is
         //require(amount0 <= amount0Max && amount1 <= amount1Max, "overflow");
     }
 
+    // solhint-disable-next-line function-max-lines
     function _getCurrentAmounts(uint160 sqrtRatioX96, int24 tick)
         internal
         view
@@ -433,11 +429,17 @@ contract GUniPoolStatic is
         );
 
         // compute current fees earned
-        (uint256 fee0, uint256 fee1) = _getFeeGrowth(
-            tick,
-            _liquidity,
+        uint256 fee0 = _computeFeesEarned(
+            true,
             feeGrowthInside0Last,
-            feeGrowthInside1Last
+            tick,
+            _liquidity
+        );
+        uint256 fee1 = _computeFeesEarned(
+            false,
+            feeGrowthInside1Last,
+            tick,
+            _liquidity
         );
 
         // add any leftover in contract to current holdings
@@ -449,30 +451,7 @@ contract GUniPoolStatic is
             _adminBalanceToken1;
     }
 
-    function _getFeeGrowth(
-        int24 tick,
-        uint128 _liquidity,
-        uint256 feeGrowthInside0Last,
-        uint256 feeGrowthInside1Last
-    )
-        internal
-        view
-        returns (uint256 fee0, uint256 fee1)
-    {
-        fee0 = _computeFeesEarned(
-            true,
-            feeGrowthInside0Last,
-            tick,
-            _liquidity
-        );
-        fee1 = _computeFeesEarned(
-            false,
-            feeGrowthInside1Last,
-            tick,
-            _liquidity
-        );
-    }
-
+    // solhint-disable-next-line function-max-lines
     function _computeFeesEarned(
         bool isZero,
         uint256 feeGrowthInsideLast,
@@ -541,7 +520,7 @@ contract GUniPoolStatic is
         if (_paymentToken == address(token0)) {
             require(
                 (feesEarned0 * _rebalanceFeeBPS) / 10000 >= _feeAmount,
-                "must earn more fees before rebalance"
+                "FTL"
             );
             _adminBalanceToken0 +=
                 ((feesEarned0 - _feeAmount) * _adminFeeBPS) /
@@ -555,7 +534,7 @@ contract GUniPoolStatic is
         } else if (_paymentToken == address(token1)) {
             require(
                 (feesEarned1 * _rebalanceFeeBPS) / 10000 >= _feeAmount,
-                "must earn more fees before rebalance"
+                "FTL"
             );
             _adminBalanceToken0 += (feesEarned0 * _adminFeeBPS) / 10000;
             _adminBalanceToken1 +=
@@ -567,7 +546,7 @@ contract GUniPoolStatic is
                 _adminBalanceToken1 -
                 _feeAmount;
         } else {
-            revert("fee token must be one of the pool assets");
+            revert("FTW");
         }
 
         _deposit(
@@ -728,12 +707,12 @@ contract GUniPoolStatic is
         if (zeroForOne) {
             require(
                 _swapThresholdPrice >= avgSqrtRatioX96 - maxSlippage,
-                "slippage price is out of acceptable range"
+                "OOR"
             );
         } else {
             require(
                 _swapThresholdPrice <= avgSqrtRatioX96 + maxSlippage,
-                "slippage price is out of acceptable range"
+                "OOR"
             );
         }
     }
