@@ -544,7 +544,7 @@ contract GUniPoolStatic is
                 _adminBalanceToken1 -
                 _feeAmount;
         } else {
-            revert("fee token");
+            revert("wrong token");
         }
 
         _deposit(
