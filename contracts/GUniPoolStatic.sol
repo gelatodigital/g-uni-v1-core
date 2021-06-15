@@ -89,7 +89,7 @@ contract GUniPoolStatic is
             uint128 liquidityMinted
         )
     {
-        require(mintAmount > 0, "mint amount must be gt 0");
+        require(mintAmount > 0, "mint 0");
 
         uint256 totalSupply = totalSupply();
 
@@ -151,7 +151,7 @@ contract GUniPoolStatic is
             uint128 liquidityBurned
         )
     {
-        require(_burnAmount > 0);
+        require(_burnAmount > 0, "burn 0");
 
         uint256 totalSupply = totalSupply();
 
@@ -258,7 +258,7 @@ contract GUniPoolStatic is
             require(
                 (_adminBalanceToken0 * _autoWithdrawFeeBPS) / 10000 >=
                     feeAmount,
-                "BTL"
+                "high fee"
             );
             amount0 = _adminBalanceToken0 - feeAmount;
             _adminBalanceToken0 = 0;
@@ -268,14 +268,14 @@ contract GUniPoolStatic is
             require(
                 (_adminBalanceToken1 * _autoWithdrawFeeBPS) / 10000 >=
                     feeAmount,
-                "BTL"
+                "high fee"
             );
             amount1 = _adminBalanceToken1 - feeAmount;
             _adminBalanceToken1 = 0;
             amount0 = _adminBalanceToken0;
             _adminBalanceToken0 = 0;
         } else {
-            revert("FTW");
+            revert("wrong token");
         }
 
         if (amount0 > 0) {
@@ -361,7 +361,7 @@ contract GUniPoolStatic is
                 FullMath.mulDiv(amount0Max, totalSupply, amount0Current);
             uint256 amount1Mint =
                 FullMath.mulDiv(amount1Max, totalSupply, amount1Current);
-            require(amount0Mint > 0 && amount1Mint > 0, "ZM");
+            require(amount0Mint > 0 && amount1Mint > 0, "mint 0");
 
             mintAmount = amount0Mint < amount1Mint ? amount0Mint : amount1Mint;
         }
@@ -518,7 +518,7 @@ contract GUniPoolStatic is
         if (_paymentToken == address(token0)) {
             require(
                 (feesEarned0 * _rebalanceFeeBPS) / 10000 >= _feeAmount,
-                "FTL"
+                "high fee"
             );
             _adminBalanceToken0 +=
                 ((feesEarned0 - _feeAmount) * _adminFeeBPS) /
@@ -532,7 +532,7 @@ contract GUniPoolStatic is
         } else if (_paymentToken == address(token1)) {
             require(
                 (feesEarned1 * _rebalanceFeeBPS) / 10000 >= _feeAmount,
-                "FTL"
+                "high fee"
             );
             _adminBalanceToken0 += (feesEarned0 * _adminFeeBPS) / 10000;
             _adminBalanceToken1 +=
@@ -544,7 +544,7 @@ contract GUniPoolStatic is
                 _adminBalanceToken1 -
                 _feeAmount;
         } else {
-            revert("FTW");
+            revert("fee token");
         }
 
         _deposit(
@@ -692,7 +692,7 @@ contract GUniPoolStatic is
 
         (int56[] memory tickCumulatives, ) = pool.observe(secondsAgo);
 
-        require(tickCumulatives.length == 2, "unexpected length of tick array");
+        require(tickCumulatives.length == 2, "array length");
 
         int24 avgTick =
             int24(

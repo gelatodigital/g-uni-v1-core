@@ -72,7 +72,7 @@ abstract contract GUniPoolStaticStorage is
         int24 _upperTick_,
         address _owner_
     ) external initializer {
-        require(msg.sender == deployer, "OD");
+        require(msg.sender == deployer, "only deployer");
         _observationSeconds = 5 minutes; // default: last five minutes;
         _maxSlippageBPS = 500; // default: 5% slippage
         _autoWithdrawFeeBPS = 100; // default: only auto withdraw if tx fee is lt 1% withdrawn
