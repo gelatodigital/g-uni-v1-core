@@ -55,7 +55,7 @@ const op = async (signer: SignerWithAddress) => {
     signer.provider
   );
 
-  const { tick, sqrtPriceX96, observationCardinality } = await pool.slot0();
+  const { tick, sqrtPriceX96 } = await pool.slot0();
   const feeGlobal0 = await pool.feeGrowthGlobal0X128();
   const feeGlobal1 = await pool.feeGrowthGlobal1X128();
   console.log("----POOL INFO----");
@@ -64,7 +64,6 @@ const op = async (signer: SignerWithAddress) => {
       1.0001 ** Number(tick)
     ).toFixed(4)} ETH)`
   );
-  console.log("twap obs cardinality:", observationCardinality.toString());
 
   const { tickCumulatives } = await pool.observe([1800, 0]);
   const avgTick = tickCumulatives[1]
@@ -72,9 +71,17 @@ const op = async (signer: SignerWithAddress) => {
     .div(ethers.BigNumber.from("1800"));
   const avgPrice = 1.0001 ** Number(avgTick.toString());
   console.log(
-    `thirty min avg tick: ${avgTick.toString()} (price: ${avgPrice.toFixed(4)})`
+    `five min avg tick: ${avgTick.toString()} (price: ${avgPrice.toFixed(
+      4
+    )} ETH)`
   );
-  console.log(`sqrtPriceX96: ${sqrtPriceX96.toString()}`);
+  console.log("current sqrtPriceX96:", sqrtPriceX96.toString());
+  const avgSqrtPrice = avgPrice ** 0.5;
+  const twoEighty = BigNumber.from("2").pow("80");
+  const avgSqrtPriceX96 = BigNumber.from(
+    Math.round(avgSqrtPrice * 2 ** 16).toString()
+  ).mul(twoEighty);
+  console.log("five min avg sqrtPriceX96:", avgSqrtPriceX96.toString());
 
   for (let i = 0; i < 2; i++) {
     console.log("");
@@ -133,6 +140,7 @@ const op = async (signer: SignerWithAddress) => {
       Number(positionUpper)
     );
     const ret = await gelatoUniV3Pool.getUnderlyingBalances();
+    const supply = await gelatoUniV3Pool.totalSupply();
     const lowerPrice = 1.0001 ** Number(positionLower);
     const upperPrice = 1.0001 ** Number(positionUpper);
     console.log(
@@ -154,6 +162,18 @@ const op = async (signer: SignerWithAddress) => {
     console.log(
       "unclaimed WETH fees:",
       ethers.utils.formatEther(fee1.add(tokensOwed1))
+    );
+    console.log("G-UNI total supply:", ethers.utils.formatEther(supply));
+    const normalizedUnderlying0 =
+      Number(ethers.utils.formatEther(ret[0])) /
+      Number(ethers.utils.formatEther(supply));
+    const normalizedUnderlying1 =
+      Number(ethers.utils.formatEther(ret[1])) /
+      Number(ethers.utils.formatEther(supply));
+    console.log(
+      `1 G-UNI is worth: ${normalizedUnderlying0.toFixed(2)} INST and ${Number(
+        normalizedUnderlying1
+      ).toFixed(6)} ETH`
     );
   }
 };
