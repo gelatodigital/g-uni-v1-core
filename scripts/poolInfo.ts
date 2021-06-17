@@ -82,6 +82,7 @@ const op = async (signer: SignerWithAddress) => {
     Math.round(avgSqrtPrice * 2 ** 16).toString()
   ).mul(twoEighty);
   console.log("five min avg sqrtPriceX96:", avgSqrtPriceX96.toString());
+  const avgSqrtPrice4Percent = avgSqrtPriceX96.div("25");
 
   for (let i = 0; i < 2; i++) {
     console.log("");
@@ -175,6 +176,15 @@ const op = async (signer: SignerWithAddress) => {
         normalizedUnderlying1
       ).toFixed(6)} ETH`
     );
+    console.log("");
+    console.log("------executiveRebalance FUNCTION DATA-------");
+    const data = gelatoUniV3Pool.interface.encodeFunctionData("executiveRebalance", [
+      -52980,
+      -39120,
+      avgSqrtPriceX96.add(avgSqrtPrice4Percent),
+      10000
+    ]);
+    console.log(data);
   }
 };
 
