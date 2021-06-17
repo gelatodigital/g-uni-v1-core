@@ -31,7 +31,7 @@ Returns:
 - `amount1` amount of token1 actually deposited into G-UNI
 - `liquidityMinted` amount of liqudiity added to G-UNI position
 
-Note: you should always end up depositing either `amount0Max` or `amount1Max` but not necessarily both. Always rely on these return values (or checking balance changes) to see how much was in fact transferred from msg.sender and deposited.
+Note: to find out the amount of token0 and token1 you would owe by minting that many G-UNI tokens use getMintAmounts method.
 
 ### burn
 
@@ -46,6 +46,8 @@ Note: you should always end up depositing either `amount0Max` or `amount1Max` bu
         )
 ```
 
+Arguments:
+
 - `_burnAmount` number of G-UNI tokens to burn
 - `_receiver` account that receives the remitted token0 and token1
 
@@ -54,6 +56,30 @@ Returns:
 - `amount0` amount of token0 remitted to \_receiver
 - `amount1` amount of token1 remitted to \_receiver
 - `liquidityBurned` amount of liquidity burned from G-UNI positon
+
+### getMintAmounts (view call)
+
+```
+    function getMintAmounts(uint256 amount0Max, uint256 amount1Max)
+        external
+        view
+        returns (
+            uint256 amount0,
+            uint256 amount1,
+            uint256 mintAmount
+        )
+```
+
+Arguments:
+
+- `amount0Max` maximum amount of token0 to deposit into G-UNI
+- `amount1Max` maximum amount of token1 to deposit into G-UNI
+
+Returns:
+
+- `amount0` actual amount of token0 to deposit into G-UNI
+- `amount1` actual amount of token1 to deposit into G-UNI
+- `mintAmount` amount of G-UNI tokens to pass to mint function (will cost exactly `amount0` and `amount1`)
 
 ### rebalance
 
@@ -88,12 +114,12 @@ If governance/admin wants to change bounds of the underlying position, or wants 
     ) external onlyOwner {
 ```
 
+Arguments:
+
 - `_newLowerTick` the tick to use as position lower bound on reinvestment
 - `_newUpperTick` the tick to use as position upper bound on reinvestment
 - `_swapThresholdPrice` a sqrtPriceX96 which is used as the slippage parameter in uniswap v3 swaps.
 - `_swapAmountBPS` amount to swap passed as basis points of current amount of leftover token held (e.g. "swap 50% of balance" would be a value of 5000)
-
-Note: still happy to remove this function if we'd rather it wasn't exposed.
 
 # test
 
