@@ -444,29 +444,31 @@ contract GUniPoolStatic is
             (, , , feeGrowthOutsideUpper, , , , ) = pool.ticks(_upperTick);
         }
 
-        // calculate fee growth below
-        uint256 feeGrowthBelow;
-        if (tick >= _lowerTick) {
-            feeGrowthBelow = feeGrowthOutsideLower;
-        } else {
-            feeGrowthBelow = feeGrowthGlobal - feeGrowthOutsideLower;
-        }
+        unchecked {
+            // calculate fee growth below
+            uint256 feeGrowthBelow;
+            if (tick >= _lowerTick) {
+                feeGrowthBelow = feeGrowthOutsideLower;
+            } else {
+                feeGrowthBelow = feeGrowthGlobal - feeGrowthOutsideLower;
+            }
 
-        // calculate fee growth above
-        uint256 feeGrowthAbove;
-        if (tick < _upperTick) {
-            feeGrowthAbove = feeGrowthOutsideUpper;
-        } else {
-            feeGrowthAbove = feeGrowthGlobal - feeGrowthOutsideUpper;
-        }
+            // calculate fee growth above
+            uint256 feeGrowthAbove;
+            if (tick < _upperTick) {
+                feeGrowthAbove = feeGrowthOutsideUpper;
+            } else {
+                feeGrowthAbove = feeGrowthGlobal - feeGrowthOutsideUpper;
+            }
 
-        uint256 feeGrowthInside =
-            feeGrowthGlobal - feeGrowthBelow - feeGrowthAbove;
-        fee = FullMath.mulDiv(
-            _liquidity,
-            feeGrowthInside - feeGrowthInsideLast,
-            0x100000000000000000000000000000000
-        );
+            uint256 feeGrowthInside =
+                feeGrowthGlobal - feeGrowthBelow - feeGrowthAbove;
+            fee = FullMath.mulDiv(
+                _liquidity,
+                feeGrowthInside - feeGrowthInsideLast,
+                0x100000000000000000000000000000000
+            );
+        }
     }
 
     function _burnAndCollect(
@@ -693,24 +695,26 @@ contract GUniPoolStatic is
         (int56[] memory tickCumulatives, ) = pool.observe(secondsAgo);
 
         require(tickCumulatives.length == 2, "array length");
-
-        int24 avgTick =
-            int24(
-                (tickCumulatives[1] - tickCumulatives[0]) /
-                    int56(uint56(_observationSeconds))
-            );
-        uint160 avgSqrtRatioX96 = avgTick.getSqrtRatioAtTick();
+        uint160 avgSqrtRatioX96;
+        unchecked {
+            int24 avgTick =
+                int24(
+                    (tickCumulatives[1] - tickCumulatives[0]) /
+                        int56(uint56(_observationSeconds))
+                );
+            avgSqrtRatioX96 = avgTick.getSqrtRatioAtTick();
+        }
 
         uint160 maxSlippage = (avgSqrtRatioX96 * _maxSlippageBPS) / 10000;
         if (zeroForOne) {
             require(
                 _swapThresholdPrice >= avgSqrtRatioX96 - maxSlippage,
-                "OOR"
+                "unacceptable slippage"
             );
         } else {
             require(
                 _swapThresholdPrice <= avgSqrtRatioX96 + maxSlippage,
-                "OOR"
+                "unacceptable slippage"
             );
         }
     }
