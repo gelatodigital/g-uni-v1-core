@@ -252,8 +252,7 @@ contract GUniPoolStatic is
         emit Rebalance(newLowerTick, newUpperTick);
     }
 
-    // solhint-disable-next-line function-max-lines, code-complexity
-    function withdrawBalances(uint256 feeAmount, address feeToken)
+    function withdrawAdminBalance(uint256 feeAmount, address feeToken)
         external
         gelatofy(feeAmount, feeToken)
     {
@@ -288,11 +287,35 @@ contract GUniPoolStatic is
         if (amount1 > 0) {
             token1.safeTransfer(adminTreasury, amount1);
         }
+    }
 
-        amount0 = gelatoBalance0;
-        amount1 = gelatoBalance1;
-        gelatoBalance0 = 0;
-        gelatoBalance1 = 0;
+    function withdrawGelatoBalance(uint256 feeAmount, address feeToken)
+        external
+        gelatofy(feeAmount, feeToken)
+    {
+        uint256 amount0;
+        uint256 amount1;
+        if (feeToken == address(token0)) {
+            require(
+                (gelatoBalance0 * gelatoWithdrawBPS) / 10000 >= feeAmount,
+                "high fee"
+            );
+            amount0 = gelatoBalance0 - feeAmount;
+            gelatoBalance0 = 0;
+            amount1 = gelatoBalance1;
+            gelatoBalance1 = 0;
+        } else if (feeToken == address(token1)) {
+            require(
+                (gelatoBalance1 * gelatoWithdrawBPS) / 10000 >= feeAmount,
+                "high fee"
+            );
+            amount1 = gelatoBalance1 - feeAmount;
+            gelatoBalance1 = 0;
+            amount0 = gelatoBalance0;
+            gelatoBalance0 = 0;
+        } else {
+            revert("wrong token");
+        }
 
         if (amount0 > 0) {
             token0.safeTransfer(GELATO, amount0);
