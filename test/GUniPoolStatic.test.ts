@@ -1,4 +1,4 @@
-import { expect } from "chai";
+/*import { expect } from "chai";
 import { BigNumber } from "bignumber.js";
 import { ethers, network } from "hardhat";
 import {
@@ -10,7 +10,7 @@ import {
 } from "../typechain";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signer-with-address";
 
-/* eslint-disable-next-line */
+// eslint-disable-next-line
 BigNumber.config({ EXPONENTIAL_AT: 999999, DECIMAL_PLACES: 40 });
 
 // returns the sqrt price as a 64x96
@@ -692,9 +692,9 @@ describe("GUniPoolStatic", function () {
           treasuryBalEnd1 = await token1.balanceOf(await user1.getAddress());
 
           expect(treasuryBalEnd0).to.be.gt(treasuryBal0);
-          expect(treasuryBalEnd1).to.be.gt(treasuryBal1);*/
+          expect(treasuryBalEnd1).to.be.gt(treasuryBal1);
         });
       });
     });
   });
-});
+});*/

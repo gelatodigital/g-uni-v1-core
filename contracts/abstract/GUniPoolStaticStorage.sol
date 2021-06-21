@@ -33,28 +33,40 @@ abstract contract GUniPoolStaticStorage is
     IERC20 public immutable token0;
     IERC20 public immutable token1;
 
-    // XXXXXXXX DO NOT MODIFY ORDERING XXXXXXXX
-    uint16 internal _maxSlippageBPS;
-    uint16 internal _adminFeeBPS;
-    uint16 internal _rebalanceFeeBPS;
-    uint16 internal _autoWithdrawFeeBPS;
-    int24 internal _lowerTick;
-    int24 internal _upperTick;
-    uint32 internal _observationSeconds;
-    address internal _treasury;
+    // solhint-disable-next-line const-name-snakecase
+    uint16 public constant gelatoFeeBPS = 50;
 
-    uint256 internal _adminBalanceToken0;
-    uint256 internal _adminBalanceToken1;
+    // XXXXXXXX DO NOT MODIFY ORDERING XXXXXXXX
+    int24 public lowerTick;
+    int24 public upperTick;
+
+    uint16 public gelatoRebalanceBPS;
+    uint16 public gelatoWithdrawBPS;
+    uint16 public gelatoSlippageBPS;
+    uint32 public gelatoSlippageInterval;
+
+    uint16 public adminFeeBPS;
+    address public adminTreasury;
+
+    uint256 public adminBalance0;
+    uint256 public adminBalance1;
+    uint256 public gelatoBalance0;
+    uint256 public gelatoBalance1;
     // APPPEND ADDITIONAL STATE VARS BELOW:
 
     // XXXXXXXX DO NOT MODIFY ORDERING XXXXXXXX
-    event UpdateAdminParams(
-        uint32 observationSeconds,
-        uint16 maxSlippageBPS,
-        uint16 adminFeeBPS,
-        uint16 rebalanceFeeBPS,
-        uint16 autoWithdrawFeeBPS,
-        address treasury
+    event UpdateAdminFee(uint16 oldAdminFeeBPS, uint16 newAdminFeeBPS);
+
+    event UpdateAdminTreasury(
+        address oldAdminTreasury,
+        address newAdminTreasury
+    );
+
+    event UpdateGelatoParams(
+        uint16 gelatoRebalanceBPS,
+        uint16 gelatoWithdrawBPS,
+        uint16 gelatoSlippageBPS,
+        uint32 gelatoSlippageInterval
     );
 
     constructor(IUniswapV3Pool _pool, address payable _gelato)
@@ -73,52 +85,48 @@ abstract contract GUniPoolStaticStorage is
         address _owner_
     ) external initializer {
         require(msg.sender == deployer, "only deployer");
-        _observationSeconds = 5 minutes; // default: last five minutes;
-        _maxSlippageBPS = 500; // default: 5% slippage
-        _autoWithdrawFeeBPS = 100; // default: only auto withdraw if tx fee is lt 1% withdrawn
-        _rebalanceFeeBPS = 1000; // default: only rebalance if tx fee is lt 10% reinvested
-        _treasury = _owner_; // default: treasury is admin
+        gelatoSlippageInterval = 5 minutes; // default: last five minutes;
+        gelatoSlippageBPS = 500; // default: 5% slippage
+        gelatoWithdrawBPS = 100; // default: only auto withdraw if tx fee is lt 1% withdrawn
+        gelatoRebalanceBPS = 1000; // default: only rebalance if tx fee is lt 10% reinvested
+        adminTreasury = _owner_; // default: treasury is admin
 
-        _lowerTick = _lowerTick_;
-        _upperTick = _upperTick_;
+        lowerTick = _lowerTick_;
+        upperTick = _upperTick_;
 
         _owner = _owner_;
     }
 
-    function updateAdminParams(
-        uint32 newObservationSeconds,
-        uint16 newMaxSlippageBPS,
-        uint16 newAdminFeeBPS,
-        uint16 newRebalanceFeeBPS,
-        uint16 newWithdrawFeeBPS,
-        address newTreasury
+    function updateAdminTreasury(address newTreasury) external onlyOwner {
+        emit UpdateAdminTreasury(adminTreasury, newTreasury);
+        adminTreasury = newTreasury;
+    }
+
+    function updateAdminFee(uint16 newFeeBPS) external onlyOwner {
+        require(newFeeBPS <= 10000, "BPS"); /// Q: enforce a lower max on the admin fee ???
+        emit UpdateAdminFee(adminFeeBPS, newFeeBPS);
+        adminFeeBPS = newFeeBPS;
+    }
+
+    function updateGelatoParams(
+        uint16 newRebalanceBPS,
+        uint16 newWithdrawBPS,
+        uint16 newSlippageBPS,
+        uint32 newSlippageInterval
     ) external onlyOwner {
-        require(newMaxSlippageBPS <= 10000, "BPS");
-        require(newAdminFeeBPS <= 10000, "BPS");
-        require(newWithdrawFeeBPS <= 10000, "BPS");
-        require(newRebalanceFeeBPS <= 10000, "BPS");
-        emit UpdateAdminParams(
-            newObservationSeconds,
-            newMaxSlippageBPS,
-            newAdminFeeBPS,
-            newRebalanceFeeBPS,
-            newWithdrawFeeBPS,
-            newTreasury
+        require(newWithdrawBPS <= 10000, "BPS");
+        require(newRebalanceBPS <= 10000, "BPS");
+        require(newSlippageBPS <= 10000, "BPS");
+        emit UpdateGelatoParams(
+            newRebalanceBPS,
+            newWithdrawBPS,
+            newSlippageBPS,
+            newSlippageInterval
         );
-        _adminFeeBPS = newAdminFeeBPS;
-        _rebalanceFeeBPS = newRebalanceFeeBPS;
-        _autoWithdrawFeeBPS = newWithdrawFeeBPS;
-        _observationSeconds = newObservationSeconds;
-        _maxSlippageBPS = newMaxSlippageBPS;
-        _treasury = newTreasury;
-    }
-
-    function lowerTick() external view returns (int24) {
-        return _lowerTick;
-    }
-
-    function upperTick() external view returns (int24) {
-        return _upperTick;
+        gelatoRebalanceBPS = newRebalanceBPS;
+        gelatoWithdrawBPS = newWithdrawBPS;
+        gelatoSlippageBPS = newSlippageBPS;
+        gelatoSlippageInterval = newSlippageInterval;
     }
 
     function getPositionID() external view returns (bytes32 positionID) {
@@ -126,7 +134,6 @@ abstract contract GUniPoolStaticStorage is
     }
 
     function _getPositionID() internal view returns (bytes32 positionID) {
-        return
-            keccak256(abi.encodePacked(address(this), _lowerTick, _upperTick));
+        return keccak256(abi.encodePacked(address(this), lowerTick, upperTick));
     }
 }
