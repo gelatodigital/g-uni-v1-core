@@ -56,14 +56,14 @@ contract GUniPoolStatic is
 
     // solhint-disable-next-line function-max-lines, code-complexity
     function uniswapV3MintCallback(
-        uint256 _amount0Owed,
-        uint256 _amount1Owed,
+        uint256 amount0Owed,
+        uint256 amount1Owed,
         bytes calldata /*_data*/
     ) external override {
         require(msg.sender == address(pool));
 
-        if (_amount0Owed > 0) token0.safeTransfer(msg.sender, _amount0Owed);
-        if (_amount1Owed > 0) token1.safeTransfer(msg.sender, _amount1Owed);
+        if (amount0Owed > 0) token0.safeTransfer(msg.sender, amount0Owed);
+        if (amount1Owed > 0) token1.safeTransfer(msg.sender, amount1Owed);
     }
 
     function uniswapV3SwapCallback(
@@ -142,7 +142,7 @@ contract GUniPoolStatic is
     }
 
     // solhint-disable-next-line function-max-lines
-    function burn(uint256 _burnAmount, address _receiver)
+    function burn(uint256 burnAmount, address receiver)
         external
         nonReentrant
         returns (
@@ -151,16 +151,16 @@ contract GUniPoolStatic is
             uint128 liquidityBurned
         )
     {
-        require(_burnAmount > 0, "burn 0");
+        require(burnAmount > 0, "burn 0");
 
         uint256 totalSupply = totalSupply();
 
         (uint128 liquidity, , , , ) = pool.positions(_getPositionID());
 
-        _burn(msg.sender, _burnAmount);
+        _burn(msg.sender, burnAmount);
 
         uint256 _liquidityBurned_ =
-            FullMath.mulDiv(_burnAmount, liquidity, totalSupply);
+            FullMath.mulDiv(burnAmount, liquidity, totalSupply);
         require(_liquidityBurned_ < type(uint128).max);
         liquidityBurned = uint128(_liquidityBurned_);
 
@@ -168,18 +168,24 @@ contract GUniPoolStatic is
         uint256 preBalance1 = token1.balanceOf(address(this));
         uint256 leftoverShare0 =
             FullMath.mulDiv(
-                _burnAmount,
+                burnAmount,
                 preBalance0 - _adminBalanceToken0,
                 totalSupply
             );
         uint256 leftoverShare1 =
             FullMath.mulDiv(
-                _burnAmount,
+                burnAmount,
                 preBalance1 - _adminBalanceToken1,
                 totalSupply
             );
 
-        _burnAndCollect(_burnAmount, totalSupply, liquidityBurned);
+        _withdrawExact(
+            _lowerTick,
+            _upperTick,
+            burnAmount,
+            totalSupply,
+            liquidityBurned
+        );
 
         amount0 =
             (token0.balanceOf(address(this)) - preBalance0) +
@@ -189,37 +195,32 @@ contract GUniPoolStatic is
             leftoverShare1;
 
         if (amount0 > 0) {
-            token0.safeTransfer(_receiver, amount0);
+            token0.safeTransfer(receiver, amount0);
         }
 
         if (amount1 > 0) {
-            token1.safeTransfer(_receiver, amount1);
+            token1.safeTransfer(receiver, amount1);
         }
 
-        emit Burned(_receiver, _burnAmount, amount0, amount1, liquidityBurned);
+        emit Burned(receiver, burnAmount, amount0, amount1, liquidityBurned);
     }
 
     function rebalance(
-        uint160 _swapThresholdPrice,
-        uint256 _swapAmountBPS,
-        uint256 _feeAmount,
-        address _paymentToken
-    ) external gelatofy(_feeAmount, _paymentToken) {
-        _reinvestFees(
-            _swapThresholdPrice,
-            _swapAmountBPS,
-            _feeAmount,
-            _paymentToken
-        );
+        uint160 swapThresholdPrice,
+        uint256 swapAmountBPS,
+        uint256 feeAmount,
+        address paymentToken
+    ) external gelatofy(feeAmount, paymentToken) {
+        _rebalance(swapThresholdPrice, swapAmountBPS, feeAmount, paymentToken);
 
         emit Rebalance(_lowerTick, _upperTick);
     }
 
     function executiveRebalance(
-        int24 _newLowerTick,
-        int24 _newUpperTick,
-        uint160 _swapThresholdPrice,
-        uint256 _swapAmountBPS
+        int24 newLowerTick,
+        int24 newUpperTick,
+        uint160 swapThresholdPrice,
+        uint256 swapAmountBPS
     ) external onlyOwner {
         (uint128 _liquidity, , , , ) = pool.positions(_getPositionID());
         (uint256 feesEarned0, uint256 feesEarned1) =
@@ -228,8 +229,8 @@ contract GUniPoolStatic is
         _adminBalanceToken0 += (feesEarned0 * _adminFeeBPS) / 10000;
         _adminBalanceToken1 += (feesEarned1 * _adminFeeBPS) / 10000;
 
-        _lowerTick = _newLowerTick;
-        _upperTick = _newUpperTick;
+        _lowerTick = newLowerTick;
+        _upperTick = newUpperTick;
 
         uint256 reinvest0 =
             token0.balanceOf(address(this)) - _adminBalanceToken0;
@@ -237,15 +238,16 @@ contract GUniPoolStatic is
             token1.balanceOf(address(this)) - _adminBalanceToken1;
 
         _deposit(
-            _newLowerTick,
-            _newUpperTick,
+            newLowerTick,
+            newUpperTick,
             reinvest0,
             reinvest1,
-            _swapThresholdPrice,
-            _swapAmountBPS
+            swapThresholdPrice,
+            swapAmountBPS,
+            false
         );
 
-        emit Rebalance(_newLowerTick, _newUpperTick);
+        emit Rebalance(newLowerTick, newUpperTick);
     }
 
     function autoWithdrawAdminBalance(uint256 feeAmount, address feeToken)
@@ -429,7 +431,7 @@ contract GUniPoolStatic is
         bool isZero,
         uint256 feeGrowthInsideLast,
         int24 tick,
-        uint128 _liquidity
+        uint128 liquidity
     ) internal view returns (uint256 fee) {
         uint256 feeGrowthOutsideLower;
         uint256 feeGrowthOutsideUpper;
@@ -464,51 +466,19 @@ contract GUniPoolStatic is
             uint256 feeGrowthInside =
                 feeGrowthGlobal - feeGrowthBelow - feeGrowthAbove;
             fee = FullMath.mulDiv(
-                _liquidity,
+                liquidity,
                 feeGrowthInside - feeGrowthInsideLast,
                 0x100000000000000000000000000000000
             );
         }
     }
 
-    function _burnAndCollect(
-        uint256 _burnAmount,
-        uint256 _supply,
-        uint128 liquidityBurned
-    ) private {
-        (uint256 burn0, uint256 burn1) =
-            pool.burn(_lowerTick, _upperTick, liquidityBurned);
-
-        (, , , uint128 tokensOwed0, uint128 tokensOwed1) =
-            pool.positions(_getPositionID());
-
-        burn0 += FullMath.mulDiv(
-            _burnAmount,
-            uint256(tokensOwed0) - burn0,
-            _supply
-        );
-        burn1 += FullMath.mulDiv(
-            _burnAmount,
-            uint256(tokensOwed1) - burn1,
-            _supply
-        );
-
-        // Withdraw tokens to user
-        pool.collect(
-            address(this),
-            _lowerTick,
-            _upperTick,
-            uint128(burn0), // cast can't overflow
-            uint128(burn1) // cast can't overflow
-        );
-    }
-
     // solhint-disable-next-line function-max-lines
-    function _reinvestFees(
-        uint160 _swapThresholdPrice,
-        uint256 _swapAmountBPS,
-        uint256 _feeAmount,
-        address _paymentToken
+    function _rebalance(
+        uint160 swapThresholdPrice,
+        uint256 swapAmountBPS,
+        uint256 feeAmount,
+        address paymentToken
     ) private {
         (uint128 _liquidity, , , , ) = pool.positions(_getPositionID());
 
@@ -517,34 +487,34 @@ contract GUniPoolStatic is
 
         uint256 reinvest0;
         uint256 reinvest1;
-        if (_paymentToken == address(token0)) {
+        if (paymentToken == address(token0)) {
             require(
-                (feesEarned0 * _rebalanceFeeBPS) / 10000 >= _feeAmount,
+                (feesEarned0 * _rebalanceFeeBPS) / 10000 >= feeAmount,
                 "high fee"
             );
             _adminBalanceToken0 +=
-                ((feesEarned0 - _feeAmount) * _adminFeeBPS) /
+                ((feesEarned0 - feeAmount) * _adminFeeBPS) /
                 10000;
             _adminBalanceToken1 += (feesEarned1 * _adminFeeBPS) / 10000;
             reinvest0 =
                 token0.balanceOf(address(this)) -
                 _adminBalanceToken0 -
-                _feeAmount;
+                feeAmount;
             reinvest1 = token1.balanceOf(address(this)) - _adminBalanceToken1;
-        } else if (_paymentToken == address(token1)) {
+        } else if (paymentToken == address(token1)) {
             require(
-                (feesEarned1 * _rebalanceFeeBPS) / 10000 >= _feeAmount,
+                (feesEarned1 * _rebalanceFeeBPS) / 10000 >= feeAmount,
                 "high fee"
             );
             _adminBalanceToken0 += (feesEarned0 * _adminFeeBPS) / 10000;
             _adminBalanceToken1 +=
-                ((feesEarned1 - _feeAmount) * _adminFeeBPS) /
+                ((feesEarned1 - feeAmount) * _adminFeeBPS) /
                 10000;
             reinvest0 = token0.balanceOf(address(this)) - _adminBalanceToken0;
             reinvest1 =
                 token1.balanceOf(address(this)) -
                 _adminBalanceToken1 -
-                _feeAmount;
+                feeAmount;
         } else {
             revert("wrong token");
         }
@@ -554,27 +524,28 @@ contract GUniPoolStatic is
             _upperTick,
             reinvest0,
             reinvest1,
-            _swapThresholdPrice,
-            _swapAmountBPS
+            swapThresholdPrice,
+            swapAmountBPS,
+            true
         );
     }
 
     // solhint-disable-next-line function-max-lines
     function _withdraw(
-        int24 _lowerTick,
-        int24 _upperTick,
-        uint128 _liquidity
+        int24 lowerTick,
+        int24 upperTick,
+        uint128 liquidity
     ) private returns (uint256 amountEarned0, uint256 amountEarned1) {
         uint256 preBalance0 = token0.balanceOf(address(this));
         uint256 preBalance1 = token1.balanceOf(address(this));
 
         (uint256 amount0Burned, uint256 amount1Burned) =
-            pool.burn(_lowerTick, _upperTick, _liquidity);
+            pool.burn(lowerTick, upperTick, liquidity);
 
         pool.collect(
             address(this),
-            _lowerTick,
-            _upperTick,
+            lowerTick,
+            upperTick,
             type(uint128).max,
             type(uint128).max
         );
@@ -589,102 +560,138 @@ contract GUniPoolStatic is
             amount1Burned;
     }
 
+    function _withdrawExact(
+        int24 lowerTick,
+        int24 upperTick,
+        uint256 burnAmount,
+        uint256 supply,
+        uint128 liquidityBurned
+    ) private {
+        (uint256 burn0, uint256 burn1) =
+            pool.burn(lowerTick, upperTick, liquidityBurned);
+
+        (, , , uint128 tokensOwed0, uint128 tokensOwed1) =
+            pool.positions(_getPositionID());
+
+        burn0 += FullMath.mulDiv(
+            burnAmount,
+            uint256(tokensOwed0) - burn0,
+            supply
+        );
+        burn1 += FullMath.mulDiv(
+            burnAmount,
+            uint256(tokensOwed1) - burn1,
+            supply
+        );
+
+        // Withdraw tokens to user
+        pool.collect(
+            address(this),
+            lowerTick,
+            upperTick,
+            uint128(burn0), // cast can't overflow
+            uint128(burn1) // cast can't overflow
+        );
+    }
+
     // solhint-disable-next-line function-max-lines
     function _deposit(
-        int24 _lowerTick,
-        int24 _upperTick,
-        uint256 _amount0,
-        uint256 _amount1,
-        uint160 _swapThresholdPrice,
-        uint256 _swapAmountBPS
+        int24 lowerTick,
+        int24 upperTick,
+        uint256 amount0,
+        uint256 amount1,
+        uint160 swapThresholdPrice,
+        uint256 swapAmountBPS,
+        bool checkSlippage
     ) private {
         (uint160 sqrtRatioX96, , , , , , ) = pool.slot0();
         // First, deposit as much as we can
         uint128 baseLiquidity =
             LiquidityAmounts.getLiquidityForAmounts(
                 sqrtRatioX96,
-                _lowerTick.getSqrtRatioAtTick(),
-                _upperTick.getSqrtRatioAtTick(),
-                _amount0,
-                _amount1
+                lowerTick.getSqrtRatioAtTick(),
+                upperTick.getSqrtRatioAtTick(),
+                amount0,
+                amount1
             );
         if (baseLiquidity > 0) {
             (uint256 amountDeposited0, uint256 amountDeposited1) =
                 pool.mint(
                     address(this),
-                    _lowerTick,
-                    _upperTick,
+                    lowerTick,
+                    upperTick,
                     baseLiquidity,
                     ""
                 );
 
-            _amount0 -= amountDeposited0;
-            _amount1 -= amountDeposited1;
+            amount0 -= amountDeposited0;
+            amount1 -= amountDeposited1;
         }
 
-        if (_amount0 > 0 || _amount1 > 0) {
+        if (amount0 > 0 || amount1 > 0) {
             // We need to swap the leftover so were balanced, then deposit it
-            bool zeroForOne = _amount0 > _amount1;
-            _checkSlippage(_swapThresholdPrice, zeroForOne);
+            bool zeroForOne = amount0 > amount1;
+            if (checkSlippage) {
+                _checkSlippage(swapThresholdPrice, zeroForOne);
+            }
             int256 swapAmount =
                 int256(
-                    ((zeroForOne ? _amount0 : _amount1) * _swapAmountBPS) /
-                        10000
+                    ((zeroForOne ? amount0 : amount1) * swapAmountBPS) / 10000
                 );
-            (_amount0, _amount1) = _swapAndDeposit(
-                _lowerTick,
-                _upperTick,
-                _amount0,
-                _amount1,
+            _swapAndDeposit(
+                lowerTick,
+                upperTick,
+                amount0,
+                amount1,
                 swapAmount,
-                _swapThresholdPrice,
+                swapThresholdPrice,
                 zeroForOne
             );
         }
     }
 
     function _swapAndDeposit(
-        int24 _lowerTick,
-        int24 _upperTick,
-        uint256 _amount0,
-        uint256 _amount1,
-        int256 _swapAmount,
-        uint160 _swapThresholdPrice,
-        bool _zeroForOne
+        int24 lowerTick,
+        int24 upperTick,
+        uint256 amount0,
+        uint256 amount1,
+        int256 swapAmount,
+        uint160 swapThresholdPrice,
+        bool zeroForOne
     ) private returns (uint256 finalAmount0, uint256 finalAmount1) {
         (int256 amount0Delta, int256 amount1Delta) =
             pool.swap(
                 address(this),
-                _zeroForOne,
-                _swapAmount,
-                _swapThresholdPrice,
+                zeroForOne,
+                swapAmount,
+                swapThresholdPrice,
                 ""
             );
-        finalAmount0 = uint256(int256(_amount0) - amount0Delta);
-        finalAmount1 = uint256(int256(_amount1) - amount1Delta);
+        finalAmount0 = uint256(int256(amount0) - amount0Delta);
+        finalAmount1 = uint256(int256(amount1) - amount1Delta);
 
         // Add liquidity a second time
         (uint160 sqrtRatioX96, , , , , , ) = pool.slot0();
         uint128 liquidityAfterSwap =
             LiquidityAmounts.getLiquidityForAmounts(
                 sqrtRatioX96,
-                TickMath.getSqrtRatioAtTick(_lowerTick),
-                TickMath.getSqrtRatioAtTick(_upperTick),
+                lowerTick.getSqrtRatioAtTick(),
+                upperTick.getSqrtRatioAtTick(),
                 finalAmount0,
                 finalAmount1
             );
         if (liquidityAfterSwap > 0) {
             pool.mint(
                 address(this),
-                _lowerTick,
-                _upperTick,
+                lowerTick,
+                upperTick,
                 liquidityAfterSwap,
                 ""
             );
         }
     }
 
-    function _checkSlippage(uint160 _swapThresholdPrice, bool zeroForOne)
+    function _checkSlippage(uint160 swapThresholdPrice, bool zeroForOne)
         private
         view
     {
@@ -708,12 +715,12 @@ contract GUniPoolStatic is
         uint160 maxSlippage = (avgSqrtRatioX96 * _maxSlippageBPS) / 10000;
         if (zeroForOne) {
             require(
-                _swapThresholdPrice >= avgSqrtRatioX96 - maxSlippage,
+                swapThresholdPrice >= avgSqrtRatioX96 - maxSlippage,
                 "unacceptable slippage"
             );
         } else {
             require(
-                _swapThresholdPrice <= avgSqrtRatioX96 + maxSlippage,
+                swapThresholdPrice <= avgSqrtRatioX96 + maxSlippage,
                 "unacceptable slippage"
             );
         }
