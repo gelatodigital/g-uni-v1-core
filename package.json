@@ -53,5 +53,8 @@
   },
   "lint-staged": {
     "*.{ts,js}": "eslint -c .eslintrc.json"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts-upgradeable": "^4.1.0"
   }
 }
