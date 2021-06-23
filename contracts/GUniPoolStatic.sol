@@ -21,13 +21,10 @@ import {
     LiquidityAmounts
 } from "./vendor/uniswap/LiquidityAmounts.sol";
 
-/// @dev DO NOT ADD STATE VARIABLES - APPEND THEM TO GelatoUniV3PoolStorage
-/// @dev DO NOT ADD BASE CONTRACTS WITH STATE VARS - APPEND THEM TO GelatoUniV3PoolStorage
 contract GUniPoolStatic is
     IUniswapV3MintCallback,
     IUniswapV3SwapCallback,
     GUniPoolStaticStorage
-    // XXXX DO NOT ADD FURHTER BASES WITH STATE VARS HERE XXXX
 {
     using SafeERC20 for IERC20;
     using TickMath for int24;
@@ -77,6 +74,8 @@ contract GUniPoolStatic is
         else if (amount1Delta > 0)
             token1.safeTransfer(msg.sender, uint256(amount1Delta));
     }
+
+    // User functions => Should be called via a Router
 
     // solhint-disable-next-line function-max-lines, code-complexity
     function mint(uint256 mintAmount, address receiver)
@@ -131,8 +130,8 @@ contract GUniPoolStatic is
             sqrtRatioX96,
             lowerTick.getSqrtRatioAtTick(),
             upperTick.getSqrtRatioAtTick(),
-            token0.balanceOf(address(this)) - adminBalance0 - gelatoBalance0,
-            token1.balanceOf(address(this)) - adminBalance1 - gelatoBalance1
+            token0.balanceOf(address(this)) - managerBalance0 - gelatoBalance0,
+            token1.balanceOf(address(this)) - managerBalance1 - gelatoBalance1
         );
         pool.mint(address(this), lowerTick, upperTick, liquidityMinted, "");
 
@@ -168,13 +167,13 @@ contract GUniPoolStatic is
         uint256 leftoverShare0 =
             FullMath.mulDiv(
                 burnAmount,
-                preBalance0 - adminBalance0 - gelatoBalance0,
+                preBalance0 - managerBalance0 - gelatoBalance0,
                 totalSupply
             );
         uint256 leftoverShare1 =
             FullMath.mulDiv(
                 burnAmount,
-                preBalance1 - adminBalance1 - gelatoBalance1,
+                preBalance1 - managerBalance1 - gelatoBalance1,
                 totalSupply
             );
 
@@ -204,16 +203,7 @@ contract GUniPoolStatic is
         emit Burned(receiver, burnAmount, amount0, amount1, liquidityBurned);
     }
 
-    function rebalance(
-        uint160 swapThresholdPrice,
-        uint256 swapAmountBPS,
-        uint256 feeAmount,
-        address paymentToken
-    ) external gelatofy(feeAmount, paymentToken) {
-        _rebalance(swapThresholdPrice, swapAmountBPS, feeAmount, paymentToken);
-
-        emit Rebalance(lowerTick, upperTick);
-    }
+    // Manager Functions => Called by Pool Manager
 
     function executiveRebalance(
         int24 newLowerTick,
@@ -225,8 +215,8 @@ contract GUniPoolStatic is
         (uint256 feesEarned0, uint256 feesEarned1) =
             _withdrawAll(lowerTick, upperTick, _liquidity);
 
-        adminBalance0 += (feesEarned0 * adminFeeBPS) / 10000;
-        adminBalance1 += (feesEarned1 * adminFeeBPS) / 10000;
+        managerBalance0 += (feesEarned0 * managerFeeBPS) / 10000;
+        managerBalance1 += (feesEarned1 * managerFeeBPS) / 10000;
         gelatoBalance0 += (feesEarned0 * gelatoFeeBPS) / 10000;
         gelatoBalance1 += (feesEarned1 * gelatoFeeBPS) / 10000;
 
@@ -234,9 +224,9 @@ contract GUniPoolStatic is
         upperTick = newUpperTick;
 
         uint256 reinvest0 =
-            token0.balanceOf(address(this)) - adminBalance0 - gelatoBalance0;
+            token0.balanceOf(address(this)) - managerBalance0 - gelatoBalance0;
         uint256 reinvest1 =
-            token1.balanceOf(address(this)) - adminBalance1 - gelatoBalance1;
+            token1.balanceOf(address(this)) - managerBalance1 - gelatoBalance1;
 
         _deposit(
             newLowerTick,
@@ -251,27 +241,40 @@ contract GUniPoolStatic is
         emit Rebalance(newLowerTick, newUpperTick);
     }
 
-    function withdrawAdminBalance(uint256 feeAmount, address feeToken)
+    // Gelatofied functions => Automatically called by Gelato
+
+    function rebalance(
+        uint160 swapThresholdPrice,
+        uint256 swapAmountBPS,
+        uint256 feeAmount,
+        address paymentToken
+    ) external gelatofy(feeAmount, paymentToken) {
+        _rebalance(swapThresholdPrice, swapAmountBPS, feeAmount, paymentToken);
+
+        emit Rebalance(lowerTick, upperTick);
+    }
+
+    function withdrawManagerBalance(uint256 feeAmount, address feeToken)
         external
         gelatofy(feeAmount, feeToken)
     {
         (uint256 amount0, uint256 amount1) =
             _balancesToWithdraw(
-                adminBalance0,
-                adminBalance1,
+                managerBalance0,
+                managerBalance1,
                 feeAmount,
                 feeToken
             );
 
-        adminBalance0 = 0;
-        adminBalance1 = 0;
+        managerBalance0 = 0;
+        managerBalance1 = 0;
 
         if (amount0 > 0) {
-            token0.safeTransfer(adminTreasury, amount0);
+            token0.safeTransfer(managerTreasury, amount0);
         }
 
         if (amount1 > 0) {
-            token1.safeTransfer(adminTreasury, amount1);
+            token1.safeTransfer(managerTreasury, amount1);
         }
     }
 
@@ -324,6 +327,8 @@ contract GUniPoolStatic is
         }
     }
 
+    // View functions
+
     function getMintAmounts(uint256 amount0Max, uint256 amount1Max)
         external
         view
@@ -358,63 +363,6 @@ contract GUniPoolStatic is
                 newLiquidity
             );
         }
-    }
-
-    // solhint-disable-next-line function-max-lines, code-complexity
-    function _computeMintAmounts(
-        uint256 totalSupply,
-        uint256 amount0Max,
-        uint256 amount1Max
-    )
-        private
-        view
-        returns (
-            uint256 amount0,
-            uint256 amount1,
-            uint256 mintAmount
-        )
-    {
-        (uint256 amount0Current, uint256 amount1Current) =
-            getUnderlyingBalances();
-
-        // compute proportional amount of tokens to mint
-        if (amount0Current == 0 && amount1Current > 0) {
-            mintAmount = FullMath.mulDiv(
-                amount1Max,
-                totalSupply,
-                amount1Current
-            );
-        } else if (amount1Current == 0 && amount0Current > 0) {
-            mintAmount = FullMath.mulDiv(
-                amount0Max,
-                totalSupply,
-                amount0Current
-            );
-        } else if (amount0Current == 0 && amount1Current == 0) {
-            revert("");
-        } else {
-            // only if both are non-zero
-            uint256 amount0Mint =
-                FullMath.mulDiv(amount0Max, totalSupply, amount0Current);
-            uint256 amount1Mint =
-                FullMath.mulDiv(amount1Max, totalSupply, amount1Current);
-            require(amount0Mint > 0 && amount1Mint > 0, "mint 0");
-
-            mintAmount = amount0Mint < amount1Mint ? amount0Mint : amount1Mint;
-        }
-
-        // compute amounts owed to contract
-        amount0 = FullMath.mulDivRoundingUp(
-            mintAmount,
-            amount0Current,
-            totalSupply
-        );
-        amount1 = FullMath.mulDivRoundingUp(
-            mintAmount,
-            amount1Current,
-            totalSupply
-        );
-        //require(amount0 <= amount0Max && amount1 <= amount1Max, "overflow");
     }
 
     // solhint-disable-next-line function-max-lines
@@ -453,62 +401,17 @@ contract GUniPoolStatic is
             fee0 +
             uint256(tokensOwed0) +
             token0.balanceOf(address(this)) -
-            adminBalance0 -
+            managerBalance0 -
             gelatoBalance0;
         amount1Current +=
             fee1 +
             uint256(tokensOwed1) +
             token1.balanceOf(address(this)) -
-            adminBalance1 -
+            managerBalance1 -
             gelatoBalance1;
     }
 
-    // solhint-disable-next-line function-max-lines
-    function _computeFeesEarned(
-        bool isZero,
-        uint256 feeGrowthInsideLast,
-        int24 tick,
-        uint128 liquidity
-    ) internal view returns (uint256 fee) {
-        uint256 feeGrowthOutsideLower;
-        uint256 feeGrowthOutsideUpper;
-        uint256 feeGrowthGlobal;
-        if (isZero) {
-            feeGrowthGlobal = pool.feeGrowthGlobal0X128();
-            (, , feeGrowthOutsideLower, , , , , ) = pool.ticks(lowerTick);
-            (, , feeGrowthOutsideUpper, , , , , ) = pool.ticks(upperTick);
-        } else {
-            feeGrowthGlobal = pool.feeGrowthGlobal1X128();
-            (, , , feeGrowthOutsideLower, , , , ) = pool.ticks(lowerTick);
-            (, , , feeGrowthOutsideUpper, , , , ) = pool.ticks(upperTick);
-        }
-
-        unchecked {
-            // calculate fee growth below
-            uint256 feeGrowthBelow;
-            if (tick >= lowerTick) {
-                feeGrowthBelow = feeGrowthOutsideLower;
-            } else {
-                feeGrowthBelow = feeGrowthGlobal - feeGrowthOutsideLower;
-            }
-
-            // calculate fee growth above
-            uint256 feeGrowthAbove;
-            if (tick < upperTick) {
-                feeGrowthAbove = feeGrowthOutsideUpper;
-            } else {
-                feeGrowthAbove = feeGrowthGlobal - feeGrowthOutsideUpper;
-            }
-
-            uint256 feeGrowthInside =
-                feeGrowthGlobal - feeGrowthBelow - feeGrowthAbove;
-            fee = FullMath.mulDiv(
-                liquidity,
-                feeGrowthInside - feeGrowthInsideLast,
-                0x100000000000000000000000000000000
-            );
-        }
-    }
+    // Private functions
 
     // solhint-disable-next-line function-max-lines
     function _rebalance(
@@ -529,39 +432,43 @@ contract GUniPoolStatic is
                 (feesEarned0 * gelatoRebalanceBPS) / 10000 >= feeAmount,
                 "high fee"
             );
-            adminBalance0 += ((feesEarned0 - feeAmount) * adminFeeBPS) / 10000;
-            adminBalance1 += (feesEarned1 * adminFeeBPS) / 10000;
+            managerBalance0 +=
+                ((feesEarned0 - feeAmount) * managerFeeBPS) /
+                10000;
+            managerBalance1 += (feesEarned1 * managerFeeBPS) / 10000;
             gelatoBalance0 +=
                 ((feesEarned0 - feeAmount) * gelatoFeeBPS) /
                 10000;
             gelatoBalance1 += (feesEarned1 * gelatoFeeBPS) / 10000;
             reinvest0 =
                 token0.balanceOf(address(this)) -
-                adminBalance0 -
+                managerBalance0 -
                 gelatoBalance0 -
                 feeAmount;
             reinvest1 =
                 token1.balanceOf(address(this)) -
-                adminBalance1 -
+                managerBalance1 -
                 gelatoBalance1;
         } else if (paymentToken == address(token1)) {
             require(
                 (feesEarned1 * gelatoRebalanceBPS) / 10000 >= feeAmount,
                 "high fee"
             );
-            adminBalance0 += (feesEarned0 * adminFeeBPS) / 10000;
-            adminBalance1 += ((feesEarned1 - feeAmount) * adminFeeBPS) / 10000;
+            managerBalance0 += (feesEarned0 * managerFeeBPS) / 10000;
+            managerBalance1 +=
+                ((feesEarned1 - feeAmount) * managerFeeBPS) /
+                10000;
             gelatoBalance0 += (feesEarned0 * gelatoFeeBPS) / 10000;
             gelatoBalance1 +=
                 ((feesEarned1 - feeAmount) * gelatoFeeBPS) /
                 10000;
             reinvest0 =
                 token0.balanceOf(address(this)) -
-                adminBalance0 -
+                managerBalance0 -
                 gelatoBalance0;
             reinvest1 =
                 token1.balanceOf(address(this)) -
-                adminBalance1 -
+                managerBalance1 -
                 gelatoBalance1 -
                 feeAmount;
         } else {
@@ -736,6 +643,110 @@ contract GUniPoolStatic is
                 upperTick_,
                 liquidityAfterSwap,
                 ""
+            );
+        }
+    }
+
+    // solhint-disable-next-line function-max-lines, code-complexity
+    function _computeMintAmounts(
+        uint256 totalSupply,
+        uint256 amount0Max,
+        uint256 amount1Max
+    )
+        private
+        view
+        returns (
+            uint256 amount0,
+            uint256 amount1,
+            uint256 mintAmount
+        )
+    {
+        (uint256 amount0Current, uint256 amount1Current) =
+            getUnderlyingBalances();
+
+        // compute proportional amount of tokens to mint
+        if (amount0Current == 0 && amount1Current > 0) {
+            mintAmount = FullMath.mulDiv(
+                amount1Max,
+                totalSupply,
+                amount1Current
+            );
+        } else if (amount1Current == 0 && amount0Current > 0) {
+            mintAmount = FullMath.mulDiv(
+                amount0Max,
+                totalSupply,
+                amount0Current
+            );
+        } else if (amount0Current == 0 && amount1Current == 0) {
+            revert("");
+        } else {
+            // only if both are non-zero
+            uint256 amount0Mint =
+                FullMath.mulDiv(amount0Max, totalSupply, amount0Current);
+            uint256 amount1Mint =
+                FullMath.mulDiv(amount1Max, totalSupply, amount1Current);
+            require(amount0Mint > 0 && amount1Mint > 0, "mint 0");
+
+            mintAmount = amount0Mint < amount1Mint ? amount0Mint : amount1Mint;
+        }
+
+        // compute amounts owed to contract
+        amount0 = FullMath.mulDivRoundingUp(
+            mintAmount,
+            amount0Current,
+            totalSupply
+        );
+        amount1 = FullMath.mulDivRoundingUp(
+            mintAmount,
+            amount1Current,
+            totalSupply
+        );
+        //require(amount0 <= amount0Max && amount1 <= amount1Max, "overflow");
+    }
+
+    // solhint-disable-next-line function-max-lines
+    function _computeFeesEarned(
+        bool isZero,
+        uint256 feeGrowthInsideLast,
+        int24 tick,
+        uint128 liquidity
+    ) private view returns (uint256 fee) {
+        uint256 feeGrowthOutsideLower;
+        uint256 feeGrowthOutsideUpper;
+        uint256 feeGrowthGlobal;
+        if (isZero) {
+            feeGrowthGlobal = pool.feeGrowthGlobal0X128();
+            (, , feeGrowthOutsideLower, , , , , ) = pool.ticks(lowerTick);
+            (, , feeGrowthOutsideUpper, , , , , ) = pool.ticks(upperTick);
+        } else {
+            feeGrowthGlobal = pool.feeGrowthGlobal1X128();
+            (, , , feeGrowthOutsideLower, , , , ) = pool.ticks(lowerTick);
+            (, , , feeGrowthOutsideUpper, , , , ) = pool.ticks(upperTick);
+        }
+
+        unchecked {
+            // calculate fee growth below
+            uint256 feeGrowthBelow;
+            if (tick >= lowerTick) {
+                feeGrowthBelow = feeGrowthOutsideLower;
+            } else {
+                feeGrowthBelow = feeGrowthGlobal - feeGrowthOutsideLower;
+            }
+
+            // calculate fee growth above
+            uint256 feeGrowthAbove;
+            if (tick < upperTick) {
+                feeGrowthAbove = feeGrowthOutsideUpper;
+            } else {
+                feeGrowthAbove = feeGrowthGlobal - feeGrowthOutsideUpper;
+            }
+
+            uint256 feeGrowthInside =
+                feeGrowthGlobal - feeGrowthBelow - feeGrowthAbove;
+            fee = FullMath.mulDiv(
+                liquidity,
+                feeGrowthInside - feeGrowthInsideLast,
+                0x100000000000000000000000000000000
             );
         }
     }

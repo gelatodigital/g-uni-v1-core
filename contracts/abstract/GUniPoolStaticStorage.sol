@@ -8,8 +8,8 @@ import {
 } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {
-    ReentrancyGuard
-} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+    ReentrancyGuardUpgradeable
+} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import {
     ERC20Upgradeable
 } from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
@@ -20,9 +20,9 @@ import {
 // solhint-disable-next-line max-states-count
 abstract contract GUniPoolStaticStorage is
     ERC20Upgradeable, /* // XXXX DONT MODIFY ORDERING XXXX*/
-    Gelatofied,
+    ReentrancyGuardUpgradeable,
     OwnableUninitialized,
-    ReentrancyGuard
+    Gelatofied
     // APPEND ADDITIONAL BASE WITH STATE VARS HERE
     // XXXX DONT MODIFY ORDERING XXXX
 {
@@ -38,11 +38,11 @@ abstract contract GUniPoolStaticStorage is
     uint16 public gelatoSlippageBPS;
     uint32 public gelatoSlippageInterval;
 
-    uint16 public adminFeeBPS;
-    address public adminTreasury;
+    uint16 public managerFeeBPS;
+    address public managerTreasury;
 
-    uint256 public adminBalance0;
-    uint256 public adminBalance1;
+    uint256 public managerBalance0;
+    uint256 public managerBalance1;
     uint256 public gelatoBalance0;
     uint256 public gelatoBalance1;
 
@@ -74,43 +74,41 @@ abstract contract GUniPoolStaticStorage is
         address _pool,
         address _token0,
         address _token1,
-        uint16 _adminFeeBPS,
+        uint16 _managerFeeBPS,
         int24 _lowerTick,
         int24 _upperTick,
         address _manager_
     ) external initializer {
-        require(_adminFeeBPS <= 10000 - gelatoFeeBPS, "admin BPS");
+        require(_managerFeeBPS <= 10000 - gelatoFeeBPS, "manager BPS");
 
         // these variables are immutable after initialization
         pool = IUniswapV3Pool(_pool);
         token0 = IERC20(_token0);
         token1 = IERC20(_token1);
-        adminFeeBPS = _adminFeeBPS;
+        managerFeeBPS = _managerFeeBPS;
 
         // these variables can be udpated by the manager
         gelatoSlippageInterval = 5 minutes; // default: last five minutes;
         gelatoSlippageBPS = 500; // default: 5% slippage
         gelatoWithdrawBPS = 100; // default: only auto withdraw if tx fee is lt 1% withdrawn
         gelatoRebalanceBPS = 200; // default: only rebalance if tx fee is lt 2% reinvested
-        adminTreasury = _manager_; // default: treasury is admin
+        managerTreasury = _manager_; // default: treasury is admin
         lowerTick = _lowerTick;
         upperTick = _upperTick;
         _manager = _manager_;
 
         // e.g. "Gelato Uniswap V3 USDC/DAI LP" and "G-UNI"
         __ERC20_init(_name, _symbol);
+        __ReentrancyGuard_init();
     }
 
-    function updateAdminTreasury(address newTreasury) external onlyManager {
-        emit UpdateAdminTreasury(adminTreasury, newTreasury);
-        adminTreasury = newTreasury;
-    }
-
+    // solhint-disable-next-line code-complexity
     function updateGelatoParams(
         uint16 newRebalanceBPS,
         uint16 newWithdrawBPS,
         uint16 newSlippageBPS,
-        uint32 newSlippageInterval
+        uint32 newSlippageInterval,
+        address newTreasury
     ) external onlyManager {
         require(newWithdrawBPS <= 10000, "BPS");
         require(newRebalanceBPS <= 10000, "BPS");
@@ -121,10 +119,20 @@ abstract contract GUniPoolStaticStorage is
             newSlippageBPS,
             newSlippageInterval
         );
-        gelatoRebalanceBPS = newRebalanceBPS;
-        gelatoWithdrawBPS = newWithdrawBPS;
-        gelatoSlippageBPS = newSlippageBPS;
-        gelatoSlippageInterval = newSlippageInterval;
+        if (newRebalanceBPS != 0) gelatoRebalanceBPS = newRebalanceBPS;
+        if (newWithdrawBPS != 0) gelatoWithdrawBPS = newWithdrawBPS;
+        if (newSlippageBPS != 0) gelatoSlippageBPS = newSlippageBPS;
+        if (newSlippageInterval != 0)
+            gelatoSlippageInterval = newSlippageInterval;
+        if (newTreasury != address(0)) managerTreasury = newTreasury;
+    }
+
+    function renounceOwnership() public virtual override onlyManager {
+        managerTreasury = address(0);
+        managerFeeBPS = 0;
+        managerBalance0 = 0;
+        managerBalance1 = 0;
+        renounceOwnership();
     }
 
     function getPositionID() external view returns (bytes32 positionID) {
