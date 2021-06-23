@@ -21,13 +21,10 @@ import {
     LiquidityAmounts
 } from "./vendor/uniswap/LiquidityAmounts.sol";
 
-/// @dev DO NOT ADD STATE VARIABLES - APPEND THEM TO GelatoUniV3PoolStorage
-/// @dev DO NOT ADD BASE CONTRACTS WITH STATE VARS - APPEND THEM TO GelatoUniV3PoolStorage
 contract GUniPoolStatic is
     IUniswapV3MintCallback,
     IUniswapV3SwapCallback,
     GUniPoolStaticStorage
-    // XXXX DO NOT ADD FURHTER BASES WITH STATE VARS HERE XXXX
 {
     using SafeERC20 for IERC20;
     using TickMath for int24;
@@ -48,11 +45,10 @@ contract GUniPoolStatic is
         uint128 liquidityBurned
     );
 
-    event Rebalance(int24 lowerTick, int24 upperTick);
+    event Rebalance(int24 lowerTick_, int24 upperTick_);
 
-    constructor(IUniswapV3Pool _pool, address payable _gelato)
-        GUniPoolStaticStorage(_pool, _gelato)
-    {} // solhint-disable-line no-empty-blocks
+    // solhint-disable-next-line max-line-length
+    constructor(address payable _gelato) GUniPoolStaticStorage(_gelato) {} // solhint-disable-line no-empty-blocks
 
     // solhint-disable-next-line function-max-lines, code-complexity
     function uniswapV3MintCallback(
@@ -78,6 +74,8 @@ contract GUniPoolStatic is
         else if (amount1Delta > 0)
             token1.safeTransfer(msg.sender, uint256(amount1Delta));
     }
+
+    // User functions => Should be called via a Router
 
     // solhint-disable-next-line function-max-lines, code-complexity
     function mint(uint256 mintAmount, address receiver)
@@ -113,8 +111,8 @@ contract GUniPoolStatic is
             // if supply is 0 mintAmount == liquidity to deposit
             (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(
                 sqrtRatioX96,
-                _lowerTick.getSqrtRatioAtTick(),
-                _upperTick.getSqrtRatioAtTick(),
+                lowerTick.getSqrtRatioAtTick(),
+                upperTick.getSqrtRatioAtTick(),
                 uint128(mintAmount)
             );
         }
@@ -130,12 +128,12 @@ contract GUniPoolStatic is
         // deposit as much new liquidity as possible
         liquidityMinted = LiquidityAmounts.getLiquidityForAmounts(
             sqrtRatioX96,
-            _lowerTick.getSqrtRatioAtTick(),
-            _upperTick.getSqrtRatioAtTick(),
-            token0.balanceOf(address(this)) - _adminBalanceToken0,
-            token1.balanceOf(address(this)) - _adminBalanceToken1
+            lowerTick.getSqrtRatioAtTick(),
+            upperTick.getSqrtRatioAtTick(),
+            token0.balanceOf(address(this)) - managerBalance0 - gelatoBalance0,
+            token1.balanceOf(address(this)) - managerBalance1 - gelatoBalance1
         );
-        pool.mint(address(this), _lowerTick, _upperTick, liquidityMinted, "");
+        pool.mint(address(this), lowerTick, upperTick, liquidityMinted, "");
 
         _mint(receiver, mintAmount);
         emit Minted(receiver, mintAmount, amount0, amount1, liquidityMinted);
@@ -169,19 +167,19 @@ contract GUniPoolStatic is
         uint256 leftoverShare0 =
             FullMath.mulDiv(
                 burnAmount,
-                preBalance0 - _adminBalanceToken0,
+                preBalance0 - managerBalance0 - gelatoBalance0,
                 totalSupply
             );
         uint256 leftoverShare1 =
             FullMath.mulDiv(
                 burnAmount,
-                preBalance1 - _adminBalanceToken1,
+                preBalance1 - managerBalance1 - gelatoBalance1,
                 totalSupply
             );
 
         _withdrawExact(
-            _lowerTick,
-            _upperTick,
+            lowerTick,
+            upperTick,
             burnAmount,
             totalSupply,
             liquidityBurned
@@ -205,37 +203,30 @@ contract GUniPoolStatic is
         emit Burned(receiver, burnAmount, amount0, amount1, liquidityBurned);
     }
 
-    function rebalance(
-        uint160 swapThresholdPrice,
-        uint256 swapAmountBPS,
-        uint256 feeAmount,
-        address paymentToken
-    ) external gelatofy(feeAmount, paymentToken) {
-        _rebalance(swapThresholdPrice, swapAmountBPS, feeAmount, paymentToken);
-
-        emit Rebalance(_lowerTick, _upperTick);
-    }
+    // Manager Functions => Called by Pool Manager
 
     function executiveRebalance(
         int24 newLowerTick,
         int24 newUpperTick,
         uint160 swapThresholdPrice,
         uint256 swapAmountBPS
-    ) external onlyOwner {
+    ) external onlyManager {
         (uint128 _liquidity, , , , ) = pool.positions(_getPositionID());
         (uint256 feesEarned0, uint256 feesEarned1) =
-            _withdraw(_lowerTick, _upperTick, _liquidity);
+            _withdrawAll(lowerTick, upperTick, _liquidity);
 
-        _adminBalanceToken0 += (feesEarned0 * _adminFeeBPS) / 10000;
-        _adminBalanceToken1 += (feesEarned1 * _adminFeeBPS) / 10000;
+        managerBalance0 += (feesEarned0 * managerFeeBPS) / 10000;
+        managerBalance1 += (feesEarned1 * managerFeeBPS) / 10000;
+        gelatoBalance0 += (feesEarned0 * gelatoFeeBPS) / 10000;
+        gelatoBalance1 += (feesEarned1 * gelatoFeeBPS) / 10000;
 
-        _lowerTick = newLowerTick;
-        _upperTick = newUpperTick;
+        lowerTick = newLowerTick;
+        upperTick = newUpperTick;
 
         uint256 reinvest0 =
-            token0.balanceOf(address(this)) - _adminBalanceToken0;
+            token0.balanceOf(address(this)) - managerBalance0 - gelatoBalance0;
         uint256 reinvest1 =
-            token1.balanceOf(address(this)) - _adminBalanceToken1;
+            token1.balanceOf(address(this)) - managerBalance1 - gelatoBalance1;
 
         _deposit(
             newLowerTick,
@@ -250,44 +241,93 @@ contract GUniPoolStatic is
         emit Rebalance(newLowerTick, newUpperTick);
     }
 
-    function autoWithdrawAdminBalance(uint256 feeAmount, address feeToken)
+    // Gelatofied functions => Automatically called by Gelato
+
+    function rebalance(
+        uint160 swapThresholdPrice,
+        uint256 swapAmountBPS,
+        uint256 feeAmount,
+        address paymentToken
+    ) external gelatofy(feeAmount, paymentToken) {
+        _rebalance(swapThresholdPrice, swapAmountBPS, feeAmount, paymentToken);
+
+        emit Rebalance(lowerTick, upperTick);
+    }
+
+    function withdrawManagerBalance(uint256 feeAmount, address feeToken)
         external
         gelatofy(feeAmount, feeToken)
     {
-        uint256 amount0;
-        uint256 amount1;
-        if (feeToken == address(token0)) {
-            require(
-                (_adminBalanceToken0 * _autoWithdrawFeeBPS) / 10000 >=
-                    feeAmount,
-                "high fee"
+        (uint256 amount0, uint256 amount1) =
+            _balancesToWithdraw(
+                managerBalance0,
+                managerBalance1,
+                feeAmount,
+                feeToken
             );
-            amount0 = _adminBalanceToken0 - feeAmount;
-            _adminBalanceToken0 = 0;
-            amount1 = _adminBalanceToken1;
-            _adminBalanceToken1 = 0;
-        } else if (feeToken == address(token1)) {
-            require(
-                (_adminBalanceToken1 * _autoWithdrawFeeBPS) / 10000 >=
-                    feeAmount,
-                "high fee"
-            );
-            amount1 = _adminBalanceToken1 - feeAmount;
-            _adminBalanceToken1 = 0;
-            amount0 = _adminBalanceToken0;
-            _adminBalanceToken0 = 0;
-        } else {
-            revert("wrong token");
-        }
+
+        managerBalance0 = 0;
+        managerBalance1 = 0;
 
         if (amount0 > 0) {
-            token0.safeTransfer(_treasury, amount0);
+            token0.safeTransfer(managerTreasury, amount0);
         }
 
         if (amount1 > 0) {
-            token1.safeTransfer(_treasury, amount1);
+            token1.safeTransfer(managerTreasury, amount1);
         }
     }
+
+    function withdrawGelatoBalance(uint256 feeAmount, address feeToken)
+        external
+        gelatofy(feeAmount, feeToken)
+    {
+        (uint256 amount0, uint256 amount1) =
+            _balancesToWithdraw(
+                gelatoBalance0,
+                gelatoBalance1,
+                feeAmount,
+                feeToken
+            );
+
+        gelatoBalance0 = 0;
+        gelatoBalance1 = 0;
+
+        if (amount0 > 0) {
+            token0.safeTransfer(GELATO, amount0);
+        }
+
+        if (amount1 > 0) {
+            token1.safeTransfer(GELATO, amount1);
+        }
+    }
+
+    function _balancesToWithdraw(
+        uint256 balance0,
+        uint256 balance1,
+        uint256 feeAmount,
+        address feeToken
+    ) internal view returns (uint256 amount0, uint256 amount1) {
+        if (feeToken == address(token0)) {
+            require(
+                (balance0 * gelatoWithdrawBPS) / 10000 >= feeAmount,
+                "high fee"
+            );
+            amount0 = balance0 - feeAmount;
+            amount1 = balance1;
+        } else if (feeToken == address(token1)) {
+            require(
+                (balance1 * gelatoWithdrawBPS) / 10000 >= feeAmount,
+                "high fee"
+            );
+            amount1 = balance1 - feeAmount;
+            amount0 = balance0;
+        } else {
+            revert("wrong token");
+        }
+    }
+
+    // View functions
 
     function getMintAmounts(uint256 amount0Max, uint256 amount1Max)
         external
@@ -310,17 +350,299 @@ contract GUniPoolStatic is
             uint128 newLiquidity =
                 LiquidityAmounts.getLiquidityForAmounts(
                     sqrtRatioX96,
-                    _lowerTick.getSqrtRatioAtTick(),
-                    _upperTick.getSqrtRatioAtTick(),
+                    lowerTick.getSqrtRatioAtTick(),
+                    upperTick.getSqrtRatioAtTick(),
                     amount0Max,
                     amount1Max
                 );
             mintAmount = uint256(newLiquidity);
             (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(
                 sqrtRatioX96,
-                _lowerTick.getSqrtRatioAtTick(),
-                _upperTick.getSqrtRatioAtTick(),
+                lowerTick.getSqrtRatioAtTick(),
+                upperTick.getSqrtRatioAtTick(),
                 newLiquidity
+            );
+        }
+    }
+
+    // solhint-disable-next-line function-max-lines
+    function getUnderlyingBalances()
+        public
+        view
+        returns (uint256 amount0Current, uint256 amount1Current)
+    {
+        (
+            uint128 _liquidity,
+            uint256 feeGrowthInside0Last,
+            uint256 feeGrowthInside1Last,
+            uint128 tokensOwed0,
+            uint128 tokensOwed1
+        ) = pool.positions(_getPositionID());
+
+        (uint160 sqrtRatioX96, int24 tick, , , , , ) = pool.slot0();
+
+        // compute current holdings from liquidity
+        (amount0Current, amount1Current) = LiquidityAmounts
+            .getAmountsForLiquidity(
+            sqrtRatioX96,
+            lowerTick.getSqrtRatioAtTick(),
+            upperTick.getSqrtRatioAtTick(),
+            _liquidity
+        );
+
+        // compute current fees earned
+        uint256 fee0 =
+            _computeFeesEarned(true, feeGrowthInside0Last, tick, _liquidity);
+        uint256 fee1 =
+            _computeFeesEarned(false, feeGrowthInside1Last, tick, _liquidity);
+
+        // add any leftover in contract to current holdings
+        amount0Current +=
+            fee0 +
+            uint256(tokensOwed0) +
+            token0.balanceOf(address(this)) -
+            managerBalance0 -
+            gelatoBalance0;
+        amount1Current +=
+            fee1 +
+            uint256(tokensOwed1) +
+            token1.balanceOf(address(this)) -
+            managerBalance1 -
+            gelatoBalance1;
+    }
+
+    // Private functions
+
+    // solhint-disable-next-line function-max-lines
+    function _rebalance(
+        uint160 swapThresholdPrice,
+        uint256 swapAmountBPS,
+        uint256 feeAmount,
+        address paymentToken
+    ) private {
+        (uint128 _liquidity, , , , ) = pool.positions(_getPositionID());
+
+        (uint256 feesEarned0, uint256 feesEarned1) =
+            _withdrawAll(lowerTick, upperTick, _liquidity);
+
+        uint256 reinvest0;
+        uint256 reinvest1;
+        if (paymentToken == address(token0)) {
+            require(
+                (feesEarned0 * gelatoRebalanceBPS) / 10000 >= feeAmount,
+                "high fee"
+            );
+            managerBalance0 +=
+                ((feesEarned0 - feeAmount) * managerFeeBPS) /
+                10000;
+            managerBalance1 += (feesEarned1 * managerFeeBPS) / 10000;
+            gelatoBalance0 +=
+                ((feesEarned0 - feeAmount) * gelatoFeeBPS) /
+                10000;
+            gelatoBalance1 += (feesEarned1 * gelatoFeeBPS) / 10000;
+            reinvest0 =
+                token0.balanceOf(address(this)) -
+                managerBalance0 -
+                gelatoBalance0 -
+                feeAmount;
+            reinvest1 =
+                token1.balanceOf(address(this)) -
+                managerBalance1 -
+                gelatoBalance1;
+        } else if (paymentToken == address(token1)) {
+            require(
+                (feesEarned1 * gelatoRebalanceBPS) / 10000 >= feeAmount,
+                "high fee"
+            );
+            managerBalance0 += (feesEarned0 * managerFeeBPS) / 10000;
+            managerBalance1 +=
+                ((feesEarned1 - feeAmount) * managerFeeBPS) /
+                10000;
+            gelatoBalance0 += (feesEarned0 * gelatoFeeBPS) / 10000;
+            gelatoBalance1 +=
+                ((feesEarned1 - feeAmount) * gelatoFeeBPS) /
+                10000;
+            reinvest0 =
+                token0.balanceOf(address(this)) -
+                managerBalance0 -
+                gelatoBalance0;
+            reinvest1 =
+                token1.balanceOf(address(this)) -
+                managerBalance1 -
+                gelatoBalance1 -
+                feeAmount;
+        } else {
+            revert("wrong token");
+        }
+
+        _deposit(
+            lowerTick,
+            upperTick,
+            reinvest0,
+            reinvest1,
+            swapThresholdPrice,
+            swapAmountBPS,
+            true
+        );
+    }
+
+    // solhint-disable-next-line function-max-lines
+    function _withdrawAll(
+        int24 lowerTick_,
+        int24 upperTick_,
+        uint128 liquidity
+    ) private returns (uint256 amountEarned0, uint256 amountEarned1) {
+        uint256 preBalance0 = token0.balanceOf(address(this));
+        uint256 preBalance1 = token1.balanceOf(address(this));
+
+        (uint256 amount0Burned, uint256 amount1Burned) =
+            pool.burn(lowerTick_, upperTick_, liquidity);
+
+        pool.collect(
+            address(this),
+            lowerTick_,
+            upperTick_,
+            type(uint128).max,
+            type(uint128).max
+        );
+
+        amountEarned0 =
+            token0.balanceOf(address(this)) -
+            preBalance0 -
+            amount0Burned;
+        amountEarned1 =
+            token1.balanceOf(address(this)) -
+            preBalance1 -
+            amount1Burned;
+    }
+
+    function _withdrawExact(
+        int24 lowerTick_,
+        int24 upperTick_,
+        uint256 burnAmount,
+        uint256 supply,
+        uint128 liquidityBurned
+    ) private {
+        (uint256 burn0, uint256 burn1) =
+            pool.burn(lowerTick_, upperTick_, liquidityBurned);
+
+        (, , , uint128 tokensOwed0, uint128 tokensOwed1) =
+            pool.positions(_getPositionID());
+
+        burn0 += FullMath.mulDiv(
+            burnAmount,
+            uint256(tokensOwed0) - burn0,
+            supply
+        );
+        burn1 += FullMath.mulDiv(
+            burnAmount,
+            uint256(tokensOwed1) - burn1,
+            supply
+        );
+
+        // Withdraw tokens to user
+        pool.collect(
+            address(this),
+            lowerTick_,
+            upperTick_,
+            uint128(burn0), // cast can't overflow
+            uint128(burn1) // cast can't overflow
+        );
+    }
+
+    // solhint-disable-next-line function-max-lines
+    function _deposit(
+        int24 lowerTick_,
+        int24 upperTick_,
+        uint256 amount0,
+        uint256 amount1,
+        uint160 swapThresholdPrice,
+        uint256 swapAmountBPS,
+        bool checkSlippage
+    ) private {
+        (uint160 sqrtRatioX96, , , , , , ) = pool.slot0();
+        // First, deposit as much as we can
+        uint128 baseLiquidity =
+            LiquidityAmounts.getLiquidityForAmounts(
+                sqrtRatioX96,
+                lowerTick_.getSqrtRatioAtTick(),
+                upperTick_.getSqrtRatioAtTick(),
+                amount0,
+                amount1
+            );
+        if (baseLiquidity > 0) {
+            (uint256 amountDeposited0, uint256 amountDeposited1) =
+                pool.mint(
+                    address(this),
+                    lowerTick_,
+                    upperTick_,
+                    baseLiquidity,
+                    ""
+                );
+
+            amount0 -= amountDeposited0;
+            amount1 -= amountDeposited1;
+        }
+
+        if (amount0 > 0 || amount1 > 0) {
+            // We need to swap the leftover so were balanced, then deposit it
+            bool zeroForOne = amount0 > amount1;
+            if (checkSlippage) {
+                _checkSlippage(swapThresholdPrice, zeroForOne);
+            }
+            int256 swapAmount =
+                int256(
+                    ((zeroForOne ? amount0 : amount1) * swapAmountBPS) / 10000
+                );
+            _swapAndDeposit(
+                lowerTick_,
+                upperTick_,
+                amount0,
+                amount1,
+                swapAmount,
+                swapThresholdPrice,
+                zeroForOne
+            );
+        }
+    }
+
+    function _swapAndDeposit(
+        int24 lowerTick_,
+        int24 upperTick_,
+        uint256 amount0,
+        uint256 amount1,
+        int256 swapAmount,
+        uint160 swapThresholdPrice,
+        bool zeroForOne
+    ) private returns (uint256 finalAmount0, uint256 finalAmount1) {
+        (int256 amount0Delta, int256 amount1Delta) =
+            pool.swap(
+                address(this),
+                zeroForOne,
+                swapAmount,
+                swapThresholdPrice,
+                ""
+            );
+        finalAmount0 = uint256(int256(amount0) - amount0Delta);
+        finalAmount1 = uint256(int256(amount1) - amount1Delta);
+
+        // Add liquidity a second time
+        (uint160 sqrtRatioX96, , , , , , ) = pool.slot0();
+        uint128 liquidityAfterSwap =
+            LiquidityAmounts.getLiquidityForAmounts(
+                sqrtRatioX96,
+                lowerTick_.getSqrtRatioAtTick(),
+                upperTick_.getSqrtRatioAtTick(),
+                finalAmount0,
+                finalAmount1
+            );
+        if (liquidityAfterSwap > 0) {
+            pool.mint(
+                address(this),
+                lowerTick_,
+                upperTick_,
+                liquidityAfterSwap,
+                ""
             );
         }
     }
@@ -383,73 +705,29 @@ contract GUniPoolStatic is
     }
 
     // solhint-disable-next-line function-max-lines
-    function getUnderlyingBalances()
-        public
-        view
-        returns (uint256 amount0Current, uint256 amount1Current)
-    {
-        (
-            uint128 _liquidity,
-            uint256 feeGrowthInside0Last,
-            uint256 feeGrowthInside1Last,
-            uint128 tokensOwed0,
-            uint128 tokensOwed1
-        ) = pool.positions(_getPositionID());
-
-        (uint160 sqrtRatioX96, int24 tick, , , , , ) = pool.slot0();
-
-        // compute current holdings from liquidity
-        (amount0Current, amount1Current) = LiquidityAmounts
-            .getAmountsForLiquidity(
-            sqrtRatioX96,
-            _lowerTick.getSqrtRatioAtTick(),
-            _upperTick.getSqrtRatioAtTick(),
-            _liquidity
-        );
-
-        // compute current fees earned
-        uint256 fee0 =
-            _computeFeesEarned(true, feeGrowthInside0Last, tick, _liquidity);
-        uint256 fee1 =
-            _computeFeesEarned(false, feeGrowthInside1Last, tick, _liquidity);
-
-        // add any leftover in contract to current holdings
-        amount0Current +=
-            fee0 +
-            uint256(tokensOwed0) +
-            token0.balanceOf(address(this)) -
-            _adminBalanceToken0;
-        amount1Current +=
-            fee1 +
-            uint256(tokensOwed1) +
-            token1.balanceOf(address(this)) -
-            _adminBalanceToken1;
-    }
-
-    // solhint-disable-next-line function-max-lines
     function _computeFeesEarned(
         bool isZero,
         uint256 feeGrowthInsideLast,
         int24 tick,
         uint128 liquidity
-    ) internal view returns (uint256 fee) {
+    ) private view returns (uint256 fee) {
         uint256 feeGrowthOutsideLower;
         uint256 feeGrowthOutsideUpper;
         uint256 feeGrowthGlobal;
         if (isZero) {
             feeGrowthGlobal = pool.feeGrowthGlobal0X128();
-            (, , feeGrowthOutsideLower, , , , , ) = pool.ticks(_lowerTick);
-            (, , feeGrowthOutsideUpper, , , , , ) = pool.ticks(_upperTick);
+            (, , feeGrowthOutsideLower, , , , , ) = pool.ticks(lowerTick);
+            (, , feeGrowthOutsideUpper, , , , , ) = pool.ticks(upperTick);
         } else {
             feeGrowthGlobal = pool.feeGrowthGlobal1X128();
-            (, , , feeGrowthOutsideLower, , , , ) = pool.ticks(_lowerTick);
-            (, , , feeGrowthOutsideUpper, , , , ) = pool.ticks(_upperTick);
+            (, , , feeGrowthOutsideLower, , , , ) = pool.ticks(lowerTick);
+            (, , , feeGrowthOutsideUpper, , , , ) = pool.ticks(upperTick);
         }
 
         unchecked {
             // calculate fee growth below
             uint256 feeGrowthBelow;
-            if (tick >= _lowerTick) {
+            if (tick >= lowerTick) {
                 feeGrowthBelow = feeGrowthOutsideLower;
             } else {
                 feeGrowthBelow = feeGrowthGlobal - feeGrowthOutsideLower;
@@ -457,7 +735,7 @@ contract GUniPoolStatic is
 
             // calculate fee growth above
             uint256 feeGrowthAbove;
-            if (tick < _upperTick) {
+            if (tick < upperTick) {
                 feeGrowthAbove = feeGrowthOutsideUpper;
             } else {
                 feeGrowthAbove = feeGrowthGlobal - feeGrowthOutsideUpper;
@@ -473,230 +751,12 @@ contract GUniPoolStatic is
         }
     }
 
-    // solhint-disable-next-line function-max-lines
-    function _rebalance(
-        uint160 swapThresholdPrice,
-        uint256 swapAmountBPS,
-        uint256 feeAmount,
-        address paymentToken
-    ) private {
-        (uint128 _liquidity, , , , ) = pool.positions(_getPositionID());
-
-        (uint256 feesEarned0, uint256 feesEarned1) =
-            _withdraw(_lowerTick, _upperTick, _liquidity);
-
-        uint256 reinvest0;
-        uint256 reinvest1;
-        if (paymentToken == address(token0)) {
-            require(
-                (feesEarned0 * _rebalanceFeeBPS) / 10000 >= feeAmount,
-                "high fee"
-            );
-            _adminBalanceToken0 +=
-                ((feesEarned0 - feeAmount) * _adminFeeBPS) /
-                10000;
-            _adminBalanceToken1 += (feesEarned1 * _adminFeeBPS) / 10000;
-            reinvest0 =
-                token0.balanceOf(address(this)) -
-                _adminBalanceToken0 -
-                feeAmount;
-            reinvest1 = token1.balanceOf(address(this)) - _adminBalanceToken1;
-        } else if (paymentToken == address(token1)) {
-            require(
-                (feesEarned1 * _rebalanceFeeBPS) / 10000 >= feeAmount,
-                "high fee"
-            );
-            _adminBalanceToken0 += (feesEarned0 * _adminFeeBPS) / 10000;
-            _adminBalanceToken1 +=
-                ((feesEarned1 - feeAmount) * _adminFeeBPS) /
-                10000;
-            reinvest0 = token0.balanceOf(address(this)) - _adminBalanceToken0;
-            reinvest1 =
-                token1.balanceOf(address(this)) -
-                _adminBalanceToken1 -
-                feeAmount;
-        } else {
-            revert("wrong token");
-        }
-
-        _deposit(
-            _lowerTick,
-            _upperTick,
-            reinvest0,
-            reinvest1,
-            swapThresholdPrice,
-            swapAmountBPS,
-            true
-        );
-    }
-
-    // solhint-disable-next-line function-max-lines
-    function _withdraw(
-        int24 lowerTick,
-        int24 upperTick,
-        uint128 liquidity
-    ) private returns (uint256 amountEarned0, uint256 amountEarned1) {
-        uint256 preBalance0 = token0.balanceOf(address(this));
-        uint256 preBalance1 = token1.balanceOf(address(this));
-
-        (uint256 amount0Burned, uint256 amount1Burned) =
-            pool.burn(lowerTick, upperTick, liquidity);
-
-        pool.collect(
-            address(this),
-            lowerTick,
-            upperTick,
-            type(uint128).max,
-            type(uint128).max
-        );
-
-        amountEarned0 =
-            token0.balanceOf(address(this)) -
-            preBalance0 -
-            amount0Burned;
-        amountEarned1 =
-            token1.balanceOf(address(this)) -
-            preBalance1 -
-            amount1Burned;
-    }
-
-    function _withdrawExact(
-        int24 lowerTick,
-        int24 upperTick,
-        uint256 burnAmount,
-        uint256 supply,
-        uint128 liquidityBurned
-    ) private {
-        (uint256 burn0, uint256 burn1) =
-            pool.burn(lowerTick, upperTick, liquidityBurned);
-
-        (, , , uint128 tokensOwed0, uint128 tokensOwed1) =
-            pool.positions(_getPositionID());
-
-        burn0 += FullMath.mulDiv(
-            burnAmount,
-            uint256(tokensOwed0) - burn0,
-            supply
-        );
-        burn1 += FullMath.mulDiv(
-            burnAmount,
-            uint256(tokensOwed1) - burn1,
-            supply
-        );
-
-        // Withdraw tokens to user
-        pool.collect(
-            address(this),
-            lowerTick,
-            upperTick,
-            uint128(burn0), // cast can't overflow
-            uint128(burn1) // cast can't overflow
-        );
-    }
-
-    // solhint-disable-next-line function-max-lines
-    function _deposit(
-        int24 lowerTick,
-        int24 upperTick,
-        uint256 amount0,
-        uint256 amount1,
-        uint160 swapThresholdPrice,
-        uint256 swapAmountBPS,
-        bool checkSlippage
-    ) private {
-        (uint160 sqrtRatioX96, , , , , , ) = pool.slot0();
-        // First, deposit as much as we can
-        uint128 baseLiquidity =
-            LiquidityAmounts.getLiquidityForAmounts(
-                sqrtRatioX96,
-                lowerTick.getSqrtRatioAtTick(),
-                upperTick.getSqrtRatioAtTick(),
-                amount0,
-                amount1
-            );
-        if (baseLiquidity > 0) {
-            (uint256 amountDeposited0, uint256 amountDeposited1) =
-                pool.mint(
-                    address(this),
-                    lowerTick,
-                    upperTick,
-                    baseLiquidity,
-                    ""
-                );
-
-            amount0 -= amountDeposited0;
-            amount1 -= amountDeposited1;
-        }
-
-        if (amount0 > 0 || amount1 > 0) {
-            // We need to swap the leftover so were balanced, then deposit it
-            bool zeroForOne = amount0 > amount1;
-            if (checkSlippage) {
-                _checkSlippage(swapThresholdPrice, zeroForOne);
-            }
-            int256 swapAmount =
-                int256(
-                    ((zeroForOne ? amount0 : amount1) * swapAmountBPS) / 10000
-                );
-            _swapAndDeposit(
-                lowerTick,
-                upperTick,
-                amount0,
-                amount1,
-                swapAmount,
-                swapThresholdPrice,
-                zeroForOne
-            );
-        }
-    }
-
-    function _swapAndDeposit(
-        int24 lowerTick,
-        int24 upperTick,
-        uint256 amount0,
-        uint256 amount1,
-        int256 swapAmount,
-        uint160 swapThresholdPrice,
-        bool zeroForOne
-    ) private returns (uint256 finalAmount0, uint256 finalAmount1) {
-        (int256 amount0Delta, int256 amount1Delta) =
-            pool.swap(
-                address(this),
-                zeroForOne,
-                swapAmount,
-                swapThresholdPrice,
-                ""
-            );
-        finalAmount0 = uint256(int256(amount0) - amount0Delta);
-        finalAmount1 = uint256(int256(amount1) - amount1Delta);
-
-        // Add liquidity a second time
-        (uint160 sqrtRatioX96, , , , , , ) = pool.slot0();
-        uint128 liquidityAfterSwap =
-            LiquidityAmounts.getLiquidityForAmounts(
-                sqrtRatioX96,
-                lowerTick.getSqrtRatioAtTick(),
-                upperTick.getSqrtRatioAtTick(),
-                finalAmount0,
-                finalAmount1
-            );
-        if (liquidityAfterSwap > 0) {
-            pool.mint(
-                address(this),
-                lowerTick,
-                upperTick,
-                liquidityAfterSwap,
-                ""
-            );
-        }
-    }
-
     function _checkSlippage(uint160 swapThresholdPrice, bool zeroForOne)
         private
         view
     {
         uint32[] memory secondsAgo = new uint32[](2);
-        secondsAgo[0] = _observationSeconds;
+        secondsAgo[0] = gelatoSlippageInterval;
         secondsAgo[1] = 0;
 
         (int56[] memory tickCumulatives, ) = pool.observe(secondsAgo);
@@ -707,12 +767,12 @@ contract GUniPoolStatic is
             int24 avgTick =
                 int24(
                     (tickCumulatives[1] - tickCumulatives[0]) /
-                        int56(uint56(_observationSeconds))
+                        int56(uint56(gelatoSlippageInterval))
                 );
             avgSqrtRatioX96 = avgTick.getSqrtRatioAtTick();
         }
 
-        uint160 maxSlippage = (avgSqrtRatioX96 * _maxSlippageBPS) / 10000;
+        uint160 maxSlippage = (avgSqrtRatioX96 * gelatoSlippageBPS) / 10000;
         if (zeroForOne) {
             require(
                 swapThresholdPrice >= avgSqrtRatioX96 - maxSlippage,
