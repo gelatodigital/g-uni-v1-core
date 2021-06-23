@@ -105,6 +105,7 @@ abstract contract GUniPoolStaticStorage is
 
     function updateAdminFee(uint16 newFeeBPS) external onlyManager {
         require(newFeeBPS <= 9950, "admin fee BPS");
+        emit UpdateAdminFee(adminFeeBPS, newFeeBPS);
         adminFeeBPS = newFeeBPS;
     }
 
