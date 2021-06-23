@@ -115,6 +115,7 @@ describe("GUniPoolStatic", function () {
       uniswapPoolAddress,
       token0.address,
       token1.address,
+      5000,
       -887220,
       887220,
       await user0.getAddress()
@@ -306,8 +307,10 @@ describe("GUniPoolStatic", function () {
                 )
             ).to.be.reverted;
 
-            const tx = await token0.approve(await user1.getAddress(), "100");
-            tx.wait();
+            const tx = await gUniPoolStatic
+              .connect(user0)
+              .updateGelatoParams("5000", "5000", "5000", "200");
+            await tx.wait();
             await swapTest.washTrade(
               uniswapPool.address,
               "500000000000000000",
@@ -357,6 +360,10 @@ describe("GUniPoolStatic", function () {
               await gUniPoolStatic.totalSupply(),
               await user0.getAddress()
             );
+
+            await gUniPoolStatic
+              .connect(gelato)
+              .withdrawAdminBalance(1, token0.address);
 
             const contractBalance0 = await token0.balanceOf(
               gUniPoolStatic.address
@@ -590,7 +597,9 @@ describe("GUniPoolStatic", function () {
           expect(preBalance1.sub(postBalance1)).to.be.gte(
             ethers.constants.Zero
           );
-
+          await gUniPoolStatic
+            .connect(gelato)
+            .withdrawAdminBalance(2, token0.address);
           await gUniPoolStatic
             .connect(user1)
             .burn(
@@ -630,7 +639,6 @@ describe("GUniPoolStatic", function () {
               .rebalance(slippagePrice, 5000, 2, token0.address)
           ).to.be.reverted;
           await gUniPoolStatic.updateAdminTreasury(await user1.getAddress());
-          await gUniPoolStatic.updateAdminFee("5000");
           const tx = await gUniPoolStatic
             .connect(user0)
             .updateGelatoParams("9000", "9000", "500", "300");
