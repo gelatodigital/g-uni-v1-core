@@ -122,7 +122,7 @@ describe("GUniPoolStatic", function () {
     );
   });
 
-  describe("GUniPoolStatic", function () {
+  describe("Before liquidity deposited", function () {
     beforeEach(async function () {
       await token0.approve(
         gUniPoolStatic.address,
@@ -210,7 +210,7 @@ describe("GUniPoolStatic", function () {
       });
     });
 
-    describe("with liquidity deposited", function () {
+    describe("After liquidity deposited", function () {
       beforeEach(async function () {
         const result = await gUniPoolStatic.getMintAmounts(
           ethers.utils.parseEther("1"),
@@ -636,8 +636,8 @@ describe("GUniPoolStatic", function () {
           expect(contractBalance1).to.equal(0);
         });
       });
-      describe("admin fees and withdrawals", function () {
-        it("should be able to set admin fee and withdraw any accrued", async function () {
+      describe("manager fees, withdrawals, and ownership", function () {
+        it("should handle manager fees and ownership", async function () {
           for (let i = 0; i < 6; i++) {
             await swapTest.washTrade(uniswapPool.address, "50000", 100, 3);
             await swapTest.washTrade(uniswapPool.address, "50000", 100, 3);
@@ -715,6 +715,20 @@ describe("GUniPoolStatic", function () {
 
           expect(gelatoLeft0).to.equal(ethers.constants.Zero);
           expect(gelatoLeft1).to.equal(ethers.constants.Zero);
+          const treasuryStart = await gUniPoolStatic.managerTreasury();
+          expect(treasuryStart).to.equal(await user1.getAddress());
+          await expect(gUniPoolStatic.connect(gelato).renounceOwnership()).to.be
+            .reverted;
+          const manager = await gUniPoolStatic.manager();
+          expect(manager).to.equal(await user0.getAddress());
+          await gUniPoolStatic
+            .connect(user0)
+            .transferOwnership(await user1.getAddress());
+          const manager2 = await gUniPoolStatic.manager();
+          expect(manager2).to.equal(await user1.getAddress());
+          await gUniPoolStatic.connect(user1).renounceOwnership();
+          const treasuryEnd = await gUniPoolStatic.managerTreasury();
+          expect(treasuryEnd).to.equal(ethers.constants.AddressZero);
         });
       });
     });
