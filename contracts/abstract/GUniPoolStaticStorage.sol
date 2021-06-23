@@ -53,8 +53,6 @@ abstract contract GUniPoolStaticStorage is
     // APPPEND ADDITIONAL STATE VARS BELOW:
 
     // XXXXXXXX DO NOT MODIFY ORDERING XXXXXXXX
-    event UpdateAdminFee(uint16 oldAdminFeeBPS, uint16 newAdminFeeBPS);
-
     event UpdateAdminTreasury(
         address oldAdminTreasury,
         address newAdminTreasury
@@ -76,37 +74,36 @@ abstract contract GUniPoolStaticStorage is
         address _pool,
         address _token0,
         address _token1,
-        int24 _lowerTick_,
-        int24 _upperTick_,
+        uint16 _adminFeeBPS,
+        int24 _lowerTick,
+        int24 _upperTick,
         address _manager_
     ) external initializer {
+        require(_adminFeeBPS <= 10000 - gelatoFeeBPS, "admin BPS");
+
+        // these variables are immutable after initialization
+        pool = IUniswapV3Pool(_pool);
+        token0 = IERC20(_token0);
+        token1 = IERC20(_token1);
+        adminFeeBPS = _adminFeeBPS;
+
+        // these variables can be udpated by the manager
         gelatoSlippageInterval = 5 minutes; // default: last five minutes;
         gelatoSlippageBPS = 500; // default: 5% slippage
         gelatoWithdrawBPS = 100; // default: only auto withdraw if tx fee is lt 1% withdrawn
         gelatoRebalanceBPS = 200; // default: only rebalance if tx fee is lt 2% reinvested
         adminTreasury = _manager_; // default: treasury is admin
-
-        pool = IUniswapV3Pool(_pool);
-        token0 = IERC20(_token0);
-        token1 = IERC20(_token1);
-        lowerTick = _lowerTick_;
-        upperTick = _upperTick_;
-
+        lowerTick = _lowerTick;
+        upperTick = _upperTick;
         _manager = _manager_;
 
-        // e.g. Gelato Uniswap V3 INST/ETH LP
+        // e.g. "Gelato Uniswap V3 USDC/DAI LP" and "G-UNI"
         __ERC20_init(_name, _symbol);
     }
 
     function updateAdminTreasury(address newTreasury) external onlyManager {
         emit UpdateAdminTreasury(adminTreasury, newTreasury);
         adminTreasury = newTreasury;
-    }
-
-    function updateAdminFee(uint16 newFeeBPS) external onlyManager {
-        require(newFeeBPS <= 9950, "admin fee BPS");
-        emit UpdateAdminFee(adminFeeBPS, newFeeBPS);
-        adminFeeBPS = newFeeBPS;
     }
 
     function updateGelatoParams(
