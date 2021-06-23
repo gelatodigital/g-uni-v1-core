@@ -19,15 +19,15 @@ import {
 /// @dev ERC20Upgradable Includes Initialize
 // solhint-disable-next-line max-states-count
 abstract contract GUniPoolStaticStorage is
-    ERC20Upgradeable, /* // XXXX DONT MODIFY ORDERING XXXX*/
+    ERC20Upgradeable, /* XXXX DONT MODIFY ORDERING XXXX */
     ReentrancyGuardUpgradeable,
     OwnableUninitialized,
     Gelatofied
-    // APPEND ADDITIONAL BASE WITH STATE VARS HERE
+    // APPEND ADDITIONAL BASE WITH STATE VARS BELOW:
     // XXXX DONT MODIFY ORDERING XXXX
 {
     // solhint-disable-next-line const-name-snakecase
-    uint16 public constant gelatoFeeBPS = 50;
+    uint16 public constant gelatoFeeBPS = 100;
 
     // XXXXXXXX DO NOT MODIFY ORDERING XXXXXXXX
     int24 public lowerTick;
@@ -47,7 +47,6 @@ abstract contract GUniPoolStaticStorage is
     uint256 public gelatoBalance1;
 
     IUniswapV3Pool public pool;
-    // We can delete token0 and token1 and always query it from pool
     IERC20 public token0;
     IERC20 public token1;
     // APPPEND ADDITIONAL STATE VARS BELOW:
@@ -85,7 +84,7 @@ abstract contract GUniPoolStaticStorage is
         pool = IUniswapV3Pool(_pool);
         token0 = IERC20(_token0);
         token1 = IERC20(_token1);
-        managerFeeBPS = _managerFeeBPS;
+        managerFeeBPS = _managerFeeBPS; // if set to 0 manager can set to non-zero val
 
         // these variables can be udpated by the manager
         gelatoSlippageInterval = 5 minutes; // default: last five minutes;
@@ -125,6 +124,15 @@ abstract contract GUniPoolStaticStorage is
         if (newSlippageInterval != 0)
             gelatoSlippageInterval = newSlippageInterval;
         if (newTreasury != address(0)) managerTreasury = newTreasury;
+    }
+
+    function setManagerFee(uint16 _managerFeeBPS) external onlyManager {
+        require(managerFeeBPS == 0, "fee already initialized");
+        require(
+            _managerFeeBPS > 0 && _managerFeeBPS <= 10000 - gelatoFeeBPS,
+            "manager BPS"
+        );
+        managerFeeBPS = _managerFeeBPS;
     }
 
     function renounceOwnership() public virtual override onlyManager {
