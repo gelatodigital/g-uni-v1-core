@@ -83,7 +83,7 @@ abstract contract GUniPoolStaticStorage is
         gelatoSlippageInterval = 5 minutes; // default: last five minutes;
         gelatoSlippageBPS = 500; // default: 5% slippage
         gelatoWithdrawBPS = 100; // default: only auto withdraw if tx fee is lt 1% withdrawn
-        gelatoRebalanceBPS = 1000; // default: only rebalance if tx fee is lt 10% reinvested
+        gelatoRebalanceBPS = 200; // default: only rebalance if tx fee is lt 2% reinvested
         adminTreasury = _manager_; // default: treasury is admin
 
         pool = IUniswapV3Pool(_pool);
@@ -104,7 +104,7 @@ abstract contract GUniPoolStaticStorage is
     }
 
     function updateAdminFee(uint16 newFeeBPS) external onlyManager {
-        require(newFeeBPS <= 10000, "BPS"); /// Q: enforce a lower max on the admin fee ???
+        require(newFeeBPS <= 9950, "admin fee BPS");
         emit UpdateAdminFee(adminFeeBPS, newFeeBPS);
         adminFeeBPS = newFeeBPS;
     }
