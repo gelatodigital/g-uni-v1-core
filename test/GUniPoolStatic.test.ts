@@ -115,7 +115,7 @@ describe("GUniPoolStatic", function () {
       uniswapPoolAddress,
       token0.address,
       token1.address,
-      5000,
+      0,
       -887220,
       887220,
       await user0.getAddress()
@@ -177,36 +177,65 @@ describe("GUniPoolStatic", function () {
 
         const decimals = await gUniPoolStatic.decimals();
         const symbol = await gUniPoolStatic.symbol();
+        const name = await gUniPoolStatic.name();
         expect(symbol).to.equal("G-UNI");
         expect(decimals).to.equal(18);
-        await gUniPoolStatic.name();
+        expect(name).to.equal("G-UNI TEST POOL");
       });
     });
 
-    describe("rebalance", function () {
+    describe("onlyGelato", function () {
       it("should fail if not called by gelato", async function () {
         await expect(
           gUniPoolStatic
             .connect(user1)
             .rebalance(encodePriceSqrt("10", "1"), 5000, 10, token0.address)
         ).to.be.reverted;
+        await expect(
+          gUniPoolStatic
+            .connect(user1)
+            .withdrawManagerBalance(1, token0.address)
+        ).to.be.reverted;
+        await expect(
+          gUniPoolStatic.connect(user1).withdrawGelatoBalance(1, token0.address)
+        ).to.be.reverted;
       });
-      it("should fail if time did not change", async function () {
+      it("should fail if no fees earned", async function () {
         await expect(
           gUniPoolStatic
             .connect(gelato)
             .rebalance(encodePriceSqrt("10", "1"), 5000, 10, token0.address)
         ).to.be.reverted;
+        await expect(
+          gUniPoolStatic
+            .connect(gelato)
+            .withdrawManagerBalance(1, token0.address)
+        ).to.be.reverted;
+        await expect(
+          gUniPoolStatic
+            .connect(gelato)
+            .withdrawGelatoBalance(1, token0.address)
+        ).to.be.reverted;
       });
     });
 
-    describe("update accepted parameters", function () {
-      it("should fail if not called by owner", async function () {
+    describe("onlyManager", function () {
+      it("should fail if not called by manager", async function () {
         await expect(
           gUniPoolStatic
             .connect(gelato)
             .updateGelatoParams(300, 5000, 5000, 5000, await user0.getAddress())
         ).to.be.reverted;
+
+        await expect(gUniPoolStatic.connect(gelato).setManagerFee(100)).to.be
+          .reverted;
+        await expect(
+          gUniPoolStatic
+            .connect(gelato)
+            .transferOwnership(await user1.getAddress())
+        ).to.be.reverted;
+        await expect(gUniPoolStatic.connect(gelato).renounceOwnership()).to.be
+          .reverted;
       });
     });
 
@@ -367,10 +396,6 @@ describe("GUniPoolStatic", function () {
               await gUniPoolStatic.totalSupply(),
               await user0.getAddress()
             );
-
-            await gUniPoolStatic
-              .connect(gelato)
-              .withdrawManagerBalance(1, token0.address);
 
             const contractBalance0 = await token0.balanceOf(
               gUniPoolStatic.address
@@ -610,9 +635,7 @@ describe("GUniPoolStatic", function () {
           expect(preBalance1.sub(postBalance1)).to.be.gte(
             ethers.constants.Zero
           );
-          await gUniPoolStatic
-            .connect(gelato)
-            .withdrawManagerBalance(2, token0.address);
+
           await gUniPoolStatic
             .connect(user1)
             .burn(
@@ -627,6 +650,10 @@ describe("GUniPoolStatic", function () {
           await gUniPoolStatic
             .connect(user0)
             .burn(await gUniPoolStatic.totalSupply(), await user0.getAddress());
+
+          await gUniPoolStatic
+            .connect(gelato)
+            .withdrawGelatoBalance(1, token0.address);
 
           contractBalance0 = await token0.balanceOf(gUniPoolStatic.address);
           contractBalance1 = await token1.balanceOf(gUniPoolStatic.address);
@@ -651,6 +678,7 @@ describe("GUniPoolStatic", function () {
               .connect(gelato)
               .rebalance(slippagePrice, 5000, 2, token0.address)
           ).to.be.reverted;
+          await gUniPoolStatic.connect(user0).setManagerFee("5000");
           const tx = await gUniPoolStatic
             .connect(user0)
             .updateGelatoParams(
