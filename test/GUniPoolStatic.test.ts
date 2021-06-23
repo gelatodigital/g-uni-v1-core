@@ -1,8 +1,8 @@
-/*import { expect } from "chai";
+import { expect } from "chai";
 import { BigNumber } from "bignumber.js";
 import { ethers, network } from "hardhat";
 import {
-  GUni,
+  IERC20,
   IUniswapV3Factory,
   IUniswapV3Pool,
   SwapTest,
@@ -36,8 +36,8 @@ describe("GUniPoolStatic", function () {
   let uniswapFactory: IUniswapV3Factory;
   let uniswapPool: IUniswapV3Pool;
 
-  let token0: GUni;
-  let token1: GUni;
+  let token0: IERC20;
+  let token1: IERC20;
   let user0: SignerWithAddress;
   let user1: SignerWithAddress;
   let user2: SignerWithAddress;
@@ -64,8 +64,8 @@ describe("GUniPoolStatic", function () {
     )) as IUniswapV3Factory;
 
     const mockERC20Factory = await ethers.getContractFactory("MockERC20");
-    token0 = (await mockERC20Factory.deploy()) as GUni;
-    token1 = (await mockERC20Factory.deploy()) as GUni;
+    token0 = (await mockERC20Factory.deploy()) as IERC20;
+    token1 = (await mockERC20Factory.deploy()) as IERC20;
 
     await token0.approve(
       swapTest.address,
@@ -106,11 +106,19 @@ describe("GUniPoolStatic", function () {
     );
 
     gUniPoolStatic = (await gUniPoolStaticFactory.deploy(
-      uniswapPoolAddress,
       await gelato.getAddress()
     )) as GUniPoolStatic;
 
-    await gUniPoolStatic.initialize(-887220, 887220, await user0.getAddress());
+    await gUniPoolStatic.initialize(
+      "G-UNI TEST POOL",
+      "G-UNI",
+      uniswapPoolAddress,
+      token0.address,
+      token1.address,
+      -887220,
+      887220,
+      await user0.getAddress()
+    );
   });
 
   describe("GUniPoolStatic", function () {
@@ -196,14 +204,7 @@ describe("GUniPoolStatic", function () {
         await expect(
           gUniPoolStatic
             .connect(gelato)
-            .updateAdminParams(
-              300,
-              5000,
-              5000,
-              5000,
-              5000,
-              ethers.constants.AddressZero
-            )
+            .updateGelatoParams(300, 5000, 5000, 5000)
         ).to.be.reverted;
       });
     });
@@ -438,167 +439,168 @@ describe("GUniPoolStatic", function () {
         });
       });
 
-      describe("simulate price moves and deposits, prove all value is returned on burn", function () {
-        it("does not get tokens stuck in contract", async function () {
-          await swapTest.washTrade(uniswapPool.address, "50000", 100, 3);
-          await swapTest.washTrade(uniswapPool.address, "50000", 100, 3);
-          const { sqrtPriceX96 } = await uniswapPool.slot0();
-          const slippagePrice = sqrtPriceX96.sub(
-            sqrtPriceX96.div(ethers.BigNumber.from("25"))
-          );
-          await expect(
-            gUniPoolStatic
-              .connect(gelato)
-              .rebalance(slippagePrice, 5000, 10, token0.address)
-          ).to.be.reverted;
+      // describe("simulate price moves and deposits, prove all value is returned on burn", function () {
+      //   it("does not get tokens stuck in contract", async function () {
+      //     await swapTest.washTrade(uniswapPool.address, "50000", 100, 3);
+      //     await swapTest.washTrade(uniswapPool.address, "50000", 100, 3);
+      //     const { sqrtPriceX96 } = await uniswapPool.slot0();
+      //     const slippagePrice = sqrtPriceX96.sub(
+      //       sqrtPriceX96.div(ethers.BigNumber.from("25"))
+      //     );
+      //     await expect(
+      //       gUniPoolStatic
+      //         .connect(gelato)
+      //         .rebalance(slippagePrice, 5000, 10, token0.address)
+      //     ).to.be.reverted;
 
-          const tx = await gUniPoolStatic
-            .connect(user0)
-            .updateAdminParams(
-              "200",
-              "5000",
-              "0",
-              "5000",
-              "5000",
-              await user0.getAddress()
-            );
-          if (network.provider && user0.provider && tx.blockHash) {
-            const block = await user0.provider.getBlock(tx.blockHash);
-            const executionTime = block.timestamp + 300;
-            await network.provider.send("evm_mine", [executionTime]);
-          }
-          await gUniPoolStatic
-            .connect(gelato)
-            .rebalance(slippagePrice, 3000, 2, token0.address);
+      //     const tx = await gUniPoolStatic
+      //       .connect(user0)
+      //       .updateAdminParams(
+      //         "200",
+      //         "5000",
+      //         "0",
+      //         "5000",
+      //         "5000",
+      //         await user0.getAddress()
+      //       );
+      //     if (network.provider && user0.provider && tx.blockHash) {
+      //       const block = await user0.provider.getBlock(tx.blockHash);
+      //       const executionTime = block.timestamp + 300;
+      //       await network.provider.send("evm_mine", [executionTime]);
+      //     }
+      //     await gUniPoolStatic
+      //       .connect(gelato)
+      //       .rebalance(slippagePrice, 3000, 2, token0.address);
 
-          let contractBalance0 = await token0.balanceOf(gUniPoolStatic.address);
-          let contractBalance1 = await token1.balanceOf(gUniPoolStatic.address);
-          console.log(contractBalance0.toString(), contractBalance1.toString());
-          await token0.transfer(await user1.getAddress(), "10000000000");
-          await token1.transfer(await user1.getAddress(), "10000000000");
-          await token0
-            .connect(user1)
-            .approve(gUniPoolStatic.address, "10000000000000");
-          await token1
-            .connect(user1)
-            .approve(gUniPoolStatic.address, "10000000000000");
-          const result = await gUniPoolStatic.getMintAmounts(1000000, 1000000);
-          await gUniPoolStatic
-            .connect(user1)
-            .mint(result.mintAmount, await user1.getAddress());
+      //     let contractBalance0 = await token0.balanceOf(gUniPoolStatic.address);
+      //     let contractBalance1 = await token1.balanceOf(gUniPoolStatic.address);
+      //     console.log(contractBalance0.toString(), contractBalance1.toString());
+      //     await token0.transfer(await user1.getAddress(), "10000000000");
+      //     await token1.transfer(await user1.getAddress(), "10000000000");
+      //     await token0
+      //       .connect(user1)
+      //       .approve(gUniPoolStatic.address, "10000000000000");
+      //     await token1
+      //       .connect(user1)
+      //       .approve(gUniPoolStatic.address, "10000000000000");
+      //     const result = await gUniPoolStatic.getMintAmounts(1000000, 1000000);
+      //     await gUniPoolStatic
+      //       .connect(user1)
+      //       .mint(result.mintAmount, await user1.getAddress());
 
-          contractBalance0 = await token0.balanceOf(gUniPoolStatic.address);
-          contractBalance1 = await token1.balanceOf(gUniPoolStatic.address);
-          console.log(contractBalance0.toString(), contractBalance1.toString());
+      //     contractBalance0 = await token0.balanceOf(gUniPoolStatic.address);
+      //     contractBalance1 = await token1.balanceOf(gUniPoolStatic.address);
+      //     console.log(contractBalance0.toString(), contractBalance1.toString());
 
-          await swapTest.washTrade(uniswapPool.address, "50000", 100, 3);
-          const tx2 = await swapTest.washTrade(
-            uniswapPool.address,
-            "50000",
-            100,
-            3
-          );
-          await tx2.wait();
-          if (network.provider && tx2.blockHash && user0.provider) {
-            const block = await user0.provider.getBlock(tx2.blockHash);
-            const executionTime = block.timestamp + 300;
-            await network.provider.send("evm_mine", [executionTime]);
-          }
-          const { sqrtPriceX96: p2 } = await uniswapPool.slot0();
-          const slippagePrice2 = p2.sub(p2.div(ethers.BigNumber.from("50")));
-          await gUniPoolStatic
-            .connect(gelato)
-            .rebalance(slippagePrice2, 9000, 10, token0.address);
-          contractBalance0 = await token0.balanceOf(gUniPoolStatic.address);
-          contractBalance1 = await token1.balanceOf(gUniPoolStatic.address);
-          console.log(contractBalance0.toString(), contractBalance1.toString());
+      //     await swapTest.washTrade(uniswapPool.address, "50000", 100, 3);
+      //     const tx2 = await swapTest.washTrade(
+      //       uniswapPool.address,
+      //       "50000",
+      //       100,
+      //       3
+      //     );
+      //     await tx2.wait();
+      //     if (network.provider && tx2.blockHash && user0.provider) {
+      //       const block = await user0.provider.getBlock(tx2.blockHash);
+      //       const executionTime = block.timestamp + 300;
+      //       await network.provider.send("evm_mine", [executionTime]);
+      //     }
+      //     const { sqrtPriceX96: p2 } = await uniswapPool.slot0();
+      //     const slippagePrice2 = p2.sub(p2.div(ethers.BigNumber.from("50")));
+      //     await gUniPoolStatic
+      //       .connect(gelato)
+      //       .rebalance(slippagePrice2, 9000, 10, token0.address);
+      //     contractBalance0 = await token0.balanceOf(gUniPoolStatic.address);
+      //     contractBalance1 = await token1.balanceOf(gUniPoolStatic.address);
+      //     console.log(contractBalance0.toString(), contractBalance1.toString());
 
-          // TEST MINT/BURN should return same amount
-          await token0.transfer(await user2.getAddress(), "100000000000");
-          await token1.transfer(await user2.getAddress(), "100000000000");
-          await token0
-            .connect(user2)
-            .approve(gUniPoolStatic.address, "1000000000000000");
-          await token1
-            .connect(user2)
-            .approve(gUniPoolStatic.address, "1000000000000000");
-          const preBalance0 = await token0.balanceOf(await user2.getAddress());
-          const preBalance1 = await token1.balanceOf(await user2.getAddress());
-          const preBalanceG = await gUniPoolStatic.balanceOf(
-            await user2.getAddress()
-          );
-          const mintAmounts = await gUniPoolStatic.getMintAmounts(
-            "90000000002",
-            "90000000002"
-          );
+      //     // TEST MINT/BURN should return same amount
+      //     await token0.transfer(await user2.getAddress(), "100000000000");
+      //     await token1.transfer(await user2.getAddress(), "100000000000");
+      //     await token0
+      //       .connect(user2)
+      //       .approve(gUniPoolStatic.address, "1000000000000000");
+      //     await token1
+      //       .connect(user2)
+      //       .approve(gUniPoolStatic.address, "1000000000000000");
+      //     const preBalance0 = await token0.balanceOf(await user2.getAddress());
+      //     const preBalance1 = await token1.balanceOf(await user2.getAddress());
+      //     const preBalanceG = await gUniPoolStatic.balanceOf(
+      //       await user2.getAddress()
+      //     );
+      //     const mintAmounts = await gUniPoolStatic.getMintAmounts(
+      //       "90000000002",
+      //       "90000000002"
+      //     );
 
-          await gUniPoolStatic
-            .connect(user2)
-            .mint(mintAmounts.mintAmount, await user2.getAddress());
-          const intermediateBalance0 = await token0.balanceOf(
-            await user2.getAddress()
-          );
-          const intermediateBalance1 = await token1.balanceOf(
-            await user2.getAddress()
-          );
-          const intermediateBalanceG = await gUniPoolStatic.balanceOf(
-            await user2.getAddress()
-          );
+      //     await gUniPoolStatic
+      //       .connect(user2)
+      //       .mint(mintAmounts.mintAmount, await user2.getAddress());
+      //     const intermediateBalance0 = await token0.balanceOf(
+      //       await user2.getAddress()
+      //     );
+      //     const intermediateBalance1 = await token1.balanceOf(
+      //       await user2.getAddress()
+      //     );
+      //     const intermediateBalanceG = await gUniPoolStatic.balanceOf(
+      //       await user2.getAddress()
+      //     );
 
-          expect(preBalance0.sub(intermediateBalance0)).to.equal(
-            mintAmounts.amount0
-          );
-          expect(preBalance1.sub(intermediateBalance1)).to.equal(
-            mintAmounts.amount1
-          );
-          expect(intermediateBalanceG.sub(preBalanceG)).to.equal(
-            mintAmounts.mintAmount
-          );
-          await gUniPoolStatic
-            .connect(user2)
-            .burn(
-              await gUniPoolStatic.balanceOf(await user2.getAddress()),
-              await user2.getAddress()
-            );
-          const postBalance0 = await token0.balanceOf(await user2.getAddress());
-          const postBalance1 = await token1.balanceOf(await user2.getAddress());
+      //     expect(preBalance0.sub(intermediateBalance0)).to.equal(
+      //       mintAmounts.amount0
+      //     );
+      //     expect(preBalance1.sub(intermediateBalance1)).to.equal(
+      //       mintAmounts.amount1
+      //     );
+      //     expect(intermediateBalanceG.sub(preBalanceG)).to.equal(
+      //       mintAmounts.mintAmount
+      //     );
+      //     await gUniPoolStatic
+      //       .connect(user2)
+      //       .burn(
+      //         await gUniPoolStatic.balanceOf(await user2.getAddress()),
+      //         await user2.getAddress()
+      //       );
+      //     const postBalance0 = await token0.balanceOf(await user2.getAddress());
+      //     const postBalance1 = await token1.balanceOf(await user2.getAddress());
 
-          expect(preBalance0.sub(postBalance0)).to.be.lte(
-            ethers.BigNumber.from("2")
-          );
-          expect(preBalance0.sub(postBalance0)).to.be.gte(
-            ethers.constants.Zero
-          );
-          expect(preBalance1.sub(postBalance1)).to.be.lte(
-            ethers.BigNumber.from("2")
-          );
-          expect(preBalance1.sub(postBalance1)).to.be.gte(
-            ethers.constants.Zero
-          );
+      //     expect(preBalance0.sub(postBalance0)).to.be.lte(
+      //       ethers.BigNumber.from("2")
+      //     );
+      //     expect(preBalance0.sub(postBalance0)).to.be.gte(
+      //       ethers.constants.Zero
+      //     );
+      //     expect(preBalance1.sub(postBalance1)).to.be.lte(
+      //       ethers.BigNumber.from("2")
+      //     );
+      //     expect(preBalance1.sub(postBalance1)).to.be.gte(
+      //       ethers.constants.Zero
+      //     );
 
-          await gUniPoolStatic
-            .connect(user1)
-            .burn(
-              await gUniPoolStatic.balanceOf(await user1.getAddress()),
-              await user1.getAddress()
-            );
+      //     await gUniPoolStatic
+      //       .connect(user1)
+      //       .burn(
+      //         await gUniPoolStatic.balanceOf(await user1.getAddress()),
+      //         await user1.getAddress()
+      //       );
 
-          contractBalance0 = await token0.balanceOf(gUniPoolStatic.address);
-          contractBalance1 = await token1.balanceOf(gUniPoolStatic.address);
-          console.log(contractBalance0.toString(), contractBalance1.toString());
+      //     contractBalance0 = await token0.balanceOf(gUniPoolStatic.address);
+      //     contractBalance1 = await token1.balanceOf(gUniPoolStatic.address);
+      //     console.log(contractBalance0.toString(), contractBalance1.toString());
 
-          await gUniPoolStatic
-            .connect(user0)
-            .burn(await gUniPoolStatic.totalSupply(), await user0.getAddress());
+      //     await gUniPoolStatic
+      //       .connect(user0)
+      //       .burn(await gUniPoolStatic.totalSupply(), await user0.getAddress());
 
-          contractBalance0 = await token0.balanceOf(gUniPoolStatic.address);
-          contractBalance1 = await token1.balanceOf(gUniPoolStatic.address);
-          console.log(contractBalance0.toString(), contractBalance1.toString());
+      //     contractBalance0 = await token0.balanceOf(gUniPoolStatic.address);
+      //     contractBalance1 = await token1.balanceOf(gUniPoolStatic.address);
+      //     console.log(contractBalance0.toString(), contractBalance1.toString());
 
-          expect(contractBalance0).to.equal(0);
-          expect(contractBalance0).to.equal(0);
-        });
-      });
+      //     expect(contractBalance0).to.equal(0);
+      //     expect(contractBalance0).to.equal(0);
+      //   });
+      // });
+      /*
       describe("admin fees and withdrawals", function () {
         it("should be able to set admin fee and withdraw any accrued", async function () {
           await swapTest.washTrade(uniswapPool.address, "50000", 100, 3);
@@ -650,7 +652,7 @@ describe("GUniPoolStatic", function () {
           expect(treasuryBalEnd0).to.be.gt(treasuryBal0);
           expect(treasuryBalEnd1).to.be.gt(treasuryBal1);
 
-          /*const bal0End = await gUniPoolStatic.adminBalanceToken0();
+          const bal0End = await gUniPoolStatic.adminBalanceToken0();
           const bal1End = await gUniPoolStatic.adminBalanceToken1();
 
           expect(bal0End).to.equal(ethers.constants.Zero);
@@ -693,8 +695,10 @@ describe("GUniPoolStatic", function () {
 
           expect(treasuryBalEnd0).to.be.gt(treasuryBal0);
           expect(treasuryBalEnd1).to.be.gt(treasuryBal1);
+          
         });
       });
+      */
     });
   });
-});*/
+});

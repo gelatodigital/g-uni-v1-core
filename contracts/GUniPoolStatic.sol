@@ -50,9 +50,8 @@ contract GUniPoolStatic is
 
     event Rebalance(int24 lowerTick_, int24 upperTick_);
 
-    constructor(IUniswapV3Pool _pool, address payable _gelato)
-        GUniPoolStaticStorage(_pool, _gelato)
-    {} // solhint-disable-line no-empty-blocks
+    // solhint-disable-next-line max-line-length
+    constructor(address payable _gelato) GUniPoolStaticStorage(_gelato) {} // solhint-disable-line no-empty-blocks
 
     // solhint-disable-next-line function-max-lines, code-complexity
     function uniswapV3MintCallback(
@@ -221,7 +220,7 @@ contract GUniPoolStatic is
         int24 newUpperTick,
         uint160 swapThresholdPrice,
         uint256 swapAmountBPS
-    ) external onlyOwner {
+    ) external onlyManager {
         (uint128 _liquidity, , , , ) = pool.positions(_getPositionID());
         (uint256 feesEarned0, uint256 feesEarned1) =
             _withdraw(lowerTick, upperTick, _liquidity);

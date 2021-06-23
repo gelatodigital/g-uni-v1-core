@@ -1,12 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.4;
 
-import {GUni} from "./GUni.sol";
 import {Gelatofied} from "./Gelatofied.sol";
 import {OwnableUninitialized} from "./OwnableUninitialized.sol";
-import {
-    Initializable
-} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import {
     IUniswapV3Pool
 } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
@@ -14,25 +10,22 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {
     ReentrancyGuard
 } from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import {
+    ERC20Upgradeable
+} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
 /// @dev Single Global upgradeable state var storage base: APPEND ONLY
 /// @dev Add all inherited contracts with state vars here: APPEND ONLY
+/// @dev ERC20Upgradable Includes Initialize
 // solhint-disable-next-line max-states-count
 abstract contract GUniPoolStaticStorage is
-    GUni, /* // XXXX DONT MODIFY ORDERING XXXX*/
+    ERC20Upgradeable, /* // XXXX DONT MODIFY ORDERING XXXX*/
     Gelatofied,
     OwnableUninitialized,
-    Initializable,
     ReentrancyGuard
     // APPEND ADDITIONAL BASE WITH STATE VARS HERE
     // XXXX DONT MODIFY ORDERING XXXX
 {
-    address public immutable deployer;
-
-    IUniswapV3Pool public immutable pool;
-    IERC20 public immutable token0;
-    IERC20 public immutable token1;
-
     // solhint-disable-next-line const-name-snakecase
     uint16 public constant gelatoFeeBPS = 50;
 
@@ -52,6 +45,11 @@ abstract contract GUniPoolStaticStorage is
     uint256 public adminBalance1;
     uint256 public gelatoBalance0;
     uint256 public gelatoBalance1;
+
+    IUniswapV3Pool public pool;
+    // We can delete token0 and token1 and always query it from pool
+    IERC20 public token0;
+    IERC20 public token1;
     // APPPEND ADDITIONAL STATE VARS BELOW:
 
     // XXXXXXXX DO NOT MODIFY ORDERING XXXXXXXX
@@ -69,40 +67,43 @@ abstract contract GUniPoolStaticStorage is
         uint32 gelatoSlippageInterval
     );
 
-    constructor(IUniswapV3Pool _pool, address payable _gelato)
-        Gelatofied(_gelato)
-    {
-        deployer = msg.sender;
-
-        pool = _pool;
-        token0 = IERC20(_pool.token0());
-        token1 = IERC20(_pool.token1());
-    }
+    // solhint-disable-next-line max-line-length
+    constructor(address payable _gelato) Gelatofied(_gelato) {} // solhint-disable-line no-empty-blocks 
 
     function initialize(
+        string memory _name,
+        string memory _symbol,
+        address _pool,
+        address _token0,
+        address _token1,
         int24 _lowerTick_,
         int24 _upperTick_,
-        address _owner_
+        address _manager_
     ) external initializer {
-        require(msg.sender == deployer, "only deployer");
         gelatoSlippageInterval = 5 minutes; // default: last five minutes;
         gelatoSlippageBPS = 500; // default: 5% slippage
         gelatoWithdrawBPS = 100; // default: only auto withdraw if tx fee is lt 1% withdrawn
         gelatoRebalanceBPS = 1000; // default: only rebalance if tx fee is lt 10% reinvested
-        adminTreasury = _owner_; // default: treasury is admin
+        adminTreasury = _manager_; // default: treasury is admin
 
+        pool = IUniswapV3Pool(_pool);
+        token0 = IERC20(_token0);
+        token1 = IERC20(_token1);
         lowerTick = _lowerTick_;
         upperTick = _upperTick_;
 
-        _owner = _owner_;
+        _manager = _manager_;
+
+        // e.g. Gelato Uniswap V3 INST/ETH LP
+        __ERC20_init(_name, _symbol);
     }
 
-    function updateAdminTreasury(address newTreasury) external onlyOwner {
+    function updateAdminTreasury(address newTreasury) external onlyManager {
         emit UpdateAdminTreasury(adminTreasury, newTreasury);
         adminTreasury = newTreasury;
     }
 
-    function updateAdminFee(uint16 newFeeBPS) external onlyOwner {
+    function updateAdminFee(uint16 newFeeBPS) external onlyManager {
         require(newFeeBPS <= 10000, "BPS"); /// Q: enforce a lower max on the admin fee ???
         emit UpdateAdminFee(adminFeeBPS, newFeeBPS);
         adminFeeBPS = newFeeBPS;
@@ -113,7 +114,7 @@ abstract contract GUniPoolStaticStorage is
         uint16 newWithdrawBPS,
         uint16 newSlippageBPS,
         uint32 newSlippageInterval
-    ) external onlyOwner {
+    ) external onlyManager {
         require(newWithdrawBPS <= 10000, "BPS");
         require(newRebalanceBPS <= 10000, "BPS");
         require(newSlippageBPS <= 10000, "BPS");
