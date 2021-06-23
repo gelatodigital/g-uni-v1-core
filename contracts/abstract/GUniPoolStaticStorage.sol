@@ -132,7 +132,7 @@ abstract contract GUniPoolStaticStorage is
         managerFeeBPS = 0;
         managerBalance0 = 0;
         managerBalance1 = 0;
-        renounceOwnership();
+        super.renounceOwnership();
     }
 
     function getPositionID() external view returns (bytes32 positionID) {
