@@ -68,7 +68,7 @@ abstract contract GUniPoolStaticStorage is
     );
 
     // solhint-disable-next-line max-line-length
-    constructor(address payable _gelato) Gelatofied(_gelato) {} // solhint-disable-line no-empty-blocks 
+    constructor(address payable _gelato) Gelatofied(_gelato) {} // solhint-disable-line no-empty-blocks
 
     function initialize(
         string memory _name,
