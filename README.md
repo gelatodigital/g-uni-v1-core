@@ -3,7 +3,7 @@
 
 # G-UNI v1 Core
 
-A shared fungible (ERC20) position for Uniswap V3 passive liquidity providers. This pool is auto rebalanced by gelato network to reinvest accrued fees of the position. The position bounds are static and can only be changed by governance/manager. Manager can be renounced and pool can be made immutable without ever changing bounds.
+A shared fungible (ERC20) position for Uniswap V3 passive liquidity providers. This pool is auto rebalanced by gelato network to reinvest accrued fees of the position. The position bounds are static and can only be changed by governance/manager. Manager can be renounced and pool can be made immutable so that it will never change its bounds.
 
 # overview
 
