@@ -437,20 +437,23 @@ contract GUniPoolStatic is
 
         // compute current fees earned
         uint256 fee0 =
-            _computeFeesEarned(true, feeGrowthInside0Last, tick, _liquidity);
+            _computeFeesEarned(true, feeGrowthInside0Last, tick, _liquidity) +
+                uint256(tokensOwed0);
         uint256 fee1 =
-            _computeFeesEarned(false, feeGrowthInside1Last, tick, _liquidity);
+            _computeFeesEarned(false, feeGrowthInside1Last, tick, _liquidity) +
+                uint256(tokensOwed1);
+
+        fee0 -= (fee0 * (gelatoFeeBPS + managerFeeBPS)) / 10000;
+        fee1 -= (fee1 * (gelatoFeeBPS + managerFeeBPS)) / 10000;
 
         // add any leftover in contract to current holdings
         amount0Current +=
             fee0 +
-            uint256(tokensOwed0) +
             token0.balanceOf(address(this)) -
             managerBalance0 -
             gelatoBalance0;
         amount1Current +=
             fee1 +
-            uint256(tokensOwed1) +
             token1.balanceOf(address(this)) -
             managerBalance1 -
             gelatoBalance1;
@@ -573,17 +576,14 @@ contract GUniPoolStatic is
 
         (, , , uint128 tokensOwed0, uint128 tokensOwed1) =
             pool.positions(_getPositionID());
+        uint256 fee0 = uint256(tokensOwed0) - burn0;
+        uint256 fee1 = uint256(tokensOwed1) - burn1;
 
-        burn0 += FullMath.mulDiv(
-            burnAmount,
-            uint256(tokensOwed0) - burn0,
-            supply
-        );
-        burn1 += FullMath.mulDiv(
-            burnAmount,
-            uint256(tokensOwed1) - burn1,
-            supply
-        );
+        fee0 -= (fee0 * (gelatoFeeBPS + managerFeeBPS)) / 10000;
+        fee1 -= (fee1 * (gelatoFeeBPS + managerFeeBPS)) / 10000;
+
+        burn0 += FullMath.mulDiv(burnAmount, fee0, supply);
+        burn1 += FullMath.mulDiv(burnAmount, fee1, supply);
 
         // Withdraw tokens to user
         pool.collect(
