@@ -1,9 +1,9 @@
 [![CircleCI](https://circleci.com/gh/gelatodigital/uni-v3-lp-static.svg?style=shield&circle-token=4781a26056cdb3529137e8b0f085029cd6323020)](https://app.circleci.com/pipelines/github/gelatodigital/uni-v3-lp-static)
 [![Coverage Status](https://coveralls.io/repos/github/gelatodigital/uni-v3-lp/badge.svg?branch=master&t=IlcAEC)](https://coveralls.io/github/gelatodigital/uni-v3-lp?branch=master)
 
-# uni-v3-lp-static
+# G-UNI v1 Core
 
-A shared fungible (ERC20) position for Uniswap V3 passive liquidity providers. This pool is auto rebalanced by gelato network to reinvest accrued fees of the position. The position bounds are static and can only be changed by governance/admin. For dynamic auto rebalanced V3 pools see [this repo](https://github.com/gelatodigital/uni-v3-lp-dynamic)
+A shared fungible (ERC20) position for Uniswap V3 passive liquidity providers. This pool is auto rebalanced by gelato network to reinvest accrued fees of the position. The position bounds are static and can only be changed by governance/manager. Manager can be renounced and pool can be made immutable without ever changing bounds.
 
 # overview
 
