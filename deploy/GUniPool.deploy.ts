@@ -9,9 +9,7 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     hre.network.name === "rinkeby" ||
     hre.network.name === "ropsten"
   ) {
-    console.log(
-      `!! Deploying GUniPoolStatic to mainnet. Hit ctrl + c to abort`
-    );
+    console.log(`!! Deploying GUniPool to mainnet. Hit ctrl + c to abort`);
     await new Promise((r) => setTimeout(r, 20000));
   }
 
@@ -19,7 +17,7 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   const { deployer } = await getNamedAccounts();
   const addresses = getAddresses(hre.network.name);
 
-  await deploy("GUniPoolStatic", {
+  await deploy("GUniPool", {
     from: deployer,
     proxy: {
       proxyContract: "EIP173ProxyWithReceive",
@@ -36,6 +34,6 @@ func.skip = async (hre: HardhatRuntimeEnvironment) => {
   return shouldSkip ? true : false;
 };
 
-func.tags = ["GUniPoolStatic"];
+func.tags = ["GUniPool"];
 
 export default func;

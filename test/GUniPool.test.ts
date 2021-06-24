@@ -6,7 +6,7 @@ import {
   IUniswapV3Factory,
   IUniswapV3Pool,
   SwapTest,
-  GUniPoolStatic,
+  GUniPool,
 } from "../typechain";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signer-with-address";
 
@@ -30,7 +30,7 @@ function position(address: string, lowerTick: number, upperTick: number) {
   );
 }
 
-describe("GUniPoolStatic", function () {
+describe("GUniPool", function () {
   this.timeout(0);
 
   let uniswapFactory: IUniswapV3Factory;
@@ -42,7 +42,7 @@ describe("GUniPoolStatic", function () {
   let user1: SignerWithAddress;
   let user2: SignerWithAddress;
   let swapTest: SwapTest;
-  let gUniPoolStatic: GUniPoolStatic;
+  let gUniPoolStatic: GUniPool;
   let gelato: SignerWithAddress;
   let uniswapPoolAddress: string;
 
@@ -76,7 +76,7 @@ describe("GUniPoolStatic", function () {
       ethers.utils.parseEther("10000000000000")
     );
 
-    // Sort token0 & token1 so it follows the same order as Uniswap & the GUniPoolStaticFactory
+    // Sort token0 & token1 so it follows the same order as Uniswap & the GUniPoolFactory
     if (
       ethers.BigNumber.from(token0.address).gt(
         ethers.BigNumber.from(token1.address)
@@ -101,13 +101,11 @@ describe("GUniPoolStatic", function () {
 
     await uniswapPool.increaseObservationCardinalityNext("5");
 
-    const gUniPoolStaticFactory = await ethers.getContractFactory(
-      "GUniPoolStatic"
-    );
+    const gUniPoolStaticFactory = await ethers.getContractFactory("GUniPool");
 
     gUniPoolStatic = (await gUniPoolStaticFactory.deploy(
       await gelato.getAddress()
-    )) as GUniPoolStatic;
+    )) as GUniPool;
 
     await gUniPoolStatic.initialize(
       "G-UNI TEST POOL",
@@ -133,7 +131,7 @@ describe("GUniPoolStatic", function () {
     });
 
     describe("deposit", function () {
-      it("Should deposit funds into GUniPoolStatic", async function () {
+      it("Should deposit funds into GUniPool", async function () {
         const result = await gUniPoolStatic.getMintAmounts(
           ethers.utils.parseEther("1"),
           ethers.utils.parseEther("1")

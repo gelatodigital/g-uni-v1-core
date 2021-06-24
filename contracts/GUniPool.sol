@@ -7,7 +7,7 @@ import {
 import {
     IUniswapV3SwapCallback
 } from "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
-import {GUniPoolStaticStorage} from "./abstract/GUniPoolStaticStorage.sol";
+import {GUniPoolStorage} from "./abstract/GUniPoolStorage.sol";
 import {
     IUniswapV3Pool
 } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
@@ -21,10 +21,10 @@ import {
     LiquidityAmounts
 } from "./vendor/uniswap/LiquidityAmounts.sol";
 
-contract GUniPoolStatic is
+contract GUniPool is
     IUniswapV3MintCallback,
     IUniswapV3SwapCallback,
-    GUniPoolStaticStorage
+    GUniPoolStorage
 {
     using SafeERC20 for IERC20;
     using TickMath for int24;
@@ -48,7 +48,7 @@ contract GUniPoolStatic is
     event Rebalance(int24 lowerTick_, int24 upperTick_);
 
     // solhint-disable-next-line max-line-length
-    constructor(address payable _gelato) GUniPoolStaticStorage(_gelato) {} // solhint-disable-line no-empty-blocks
+    constructor(address payable _gelato) GUniPoolStorage(_gelato) {} // solhint-disable-line no-empty-blocks
 
     /// @notice Uniswap V3 callback fn, called back on pool.mint
     function uniswapV3MintCallback(

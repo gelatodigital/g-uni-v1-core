@@ -18,7 +18,7 @@ import {
 /// @dev Add all inherited contracts with state vars here: APPEND ONLY
 /// @dev ERC20Upgradable Includes Initialize
 // solhint-disable-next-line max-states-count
-abstract contract GUniPoolStaticStorage is
+abstract contract GUniPoolStorage is
     ERC20Upgradeable, /* XXXX DONT MODIFY ORDERING XXXX */
     ReentrancyGuardUpgradeable,
     OwnableUninitialized,
