@@ -18,7 +18,7 @@ import {
 /// @dev Add all inherited contracts with state vars here: APPEND ONLY
 /// @dev ERC20Upgradable Includes Initialize
 // solhint-disable-next-line max-states-count
-abstract contract GUniPoolStaticStorage is
+abstract contract GUniPoolStorage is
     ERC20Upgradeable, /* XXXX DONT MODIFY ORDERING XXXX */
     ReentrancyGuardUpgradeable,
     OwnableUninitialized,
@@ -50,8 +50,8 @@ abstract contract GUniPoolStaticStorage is
     IERC20 public token0;
     IERC20 public token1;
     // APPPEND ADDITIONAL STATE VARS BELOW:
-
     // XXXXXXXX DO NOT MODIFY ORDERING XXXXXXXX
+
     event UpdateAdminTreasury(
         address oldAdminTreasury,
         address newAdminTreasury
@@ -67,12 +67,19 @@ abstract contract GUniPoolStaticStorage is
     // solhint-disable-next-line max-line-length
     constructor(address payable _gelato) Gelatofied(_gelato) {} // solhint-disable-line no-empty-blocks
 
+    /// @notice initialize storage variables on a new G-UNI pool, only called once
+    /// @param _name name of G-UNI token
+    /// @param _symbol symbol of G-UNI token
+    /// @param _pool address of Uniswap V3 pool
+    /// @param _managerFeeBPS proportion of fees earned that go to manager treasury
+    /// note that the 4 above params are NOT UPDATEABLE AFTER INILIALIZATION
+    /// @param _lowerTick initial lowerTick (only changeable with executiveRebalance)
+    /// @param _lowerTick initial upperTick (only changeable with executiveRebalance)
+    /// @param _manager_ address of manager (ownership can be transferred)
     function initialize(
         string memory _name,
         string memory _symbol,
         address _pool,
-        address _token0,
-        address _token1,
         uint16 _managerFeeBPS,
         int24 _lowerTick,
         int24 _upperTick,
@@ -82,9 +89,9 @@ abstract contract GUniPoolStaticStorage is
 
         // these variables are immutable after initialization
         pool = IUniswapV3Pool(_pool);
-        token0 = IERC20(_token0);
-        token1 = IERC20(_token1);
-        managerFeeBPS = _managerFeeBPS; // if set to 0 manager can set to non-zero val
+        token0 = IERC20(pool.token0());
+        token1 = IERC20(pool.token1());
+        managerFeeBPS = _managerFeeBPS; // if set to 0 here manager can still initialize later
 
         // these variables can be udpated by the manager
         gelatoSlippageInterval = 5 minutes; // default: last five minutes;
@@ -101,6 +108,14 @@ abstract contract GUniPoolStaticStorage is
         __ReentrancyGuard_init();
     }
 
+    /// @notice change configurable parameters, only manager can call
+    /// @param newRebalanceBPS controls frequency of gelato rebalances: gas fee to execute
+    /// rebalance can be gelatoRebalanceBPS proportion of fees earned since last rebalance
+    /// @param newWithdrawBPS controls frequency of gelato withdrawals: gas fee to execute
+    /// withdrawal can be gelatoWithdrawBPS proportion of fees accrued since last withdraw
+    /// @param newSlippageBPS maximum slippage on swaps during gelato rebalance
+    /// @param newSlippageInterval length of time for TWAP used in computing slippage on swaps
+    /// @param newTreasury address where managerFee withdrawals are sent
     // solhint-disable-next-line code-complexity
     function updateGelatoParams(
         uint16 newRebalanceBPS,
@@ -126,7 +141,11 @@ abstract contract GUniPoolStaticStorage is
         if (newTreasury != address(0)) managerTreasury = newTreasury;
     }
 
-    function setManagerFee(uint16 _managerFeeBPS) external onlyManager {
+    /// @notice initializeManagerFee sets a managerFee, only manager can call.
+    /// If a manager fee was not set in the initialize function it can be set here
+    /// but ONLY ONCE- after it is set to a non-zero value, managerFee can never be set again.
+    /// @param _managerFeeBPS proportion of fees earned that are credited to manager in Basis Points
+    function initializeManagerFee(uint16 _managerFeeBPS) external onlyManager {
         require(managerFeeBPS == 0, "fee already initialized");
         require(
             _managerFeeBPS > 0 && _managerFeeBPS <= 10000 - gelatoFeeBPS,

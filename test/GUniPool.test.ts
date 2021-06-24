@@ -6,7 +6,7 @@ import {
   IUniswapV3Factory,
   IUniswapV3Pool,
   SwapTest,
-  GUniPoolStatic,
+  GUniPool,
 } from "../typechain";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signer-with-address";
 
@@ -30,7 +30,7 @@ function position(address: string, lowerTick: number, upperTick: number) {
   );
 }
 
-describe("GUniPoolStatic", function () {
+describe("GUniPool", function () {
   this.timeout(0);
 
   let uniswapFactory: IUniswapV3Factory;
@@ -42,7 +42,7 @@ describe("GUniPoolStatic", function () {
   let user1: SignerWithAddress;
   let user2: SignerWithAddress;
   let swapTest: SwapTest;
-  let gUniPoolStatic: GUniPoolStatic;
+  let gUniPoolStatic: GUniPool;
   let gelato: SignerWithAddress;
   let uniswapPoolAddress: string;
 
@@ -76,7 +76,7 @@ describe("GUniPoolStatic", function () {
       ethers.utils.parseEther("10000000000000")
     );
 
-    // Sort token0 & token1 so it follows the same order as Uniswap & the GUniPoolStaticFactory
+    // Sort token0 & token1 so it follows the same order as Uniswap & the GUniPoolFactory
     if (
       ethers.BigNumber.from(token0.address).gt(
         ethers.BigNumber.from(token1.address)
@@ -101,20 +101,16 @@ describe("GUniPoolStatic", function () {
 
     await uniswapPool.increaseObservationCardinalityNext("5");
 
-    const gUniPoolStaticFactory = await ethers.getContractFactory(
-      "GUniPoolStatic"
-    );
+    const gUniPoolStaticFactory = await ethers.getContractFactory("GUniPool");
 
     gUniPoolStatic = (await gUniPoolStaticFactory.deploy(
       await gelato.getAddress()
-    )) as GUniPoolStatic;
+    )) as GUniPool;
 
     await gUniPoolStatic.initialize(
       "G-UNI TEST POOL",
       "G-UNI",
       uniswapPoolAddress,
-      token0.address,
-      token1.address,
       0,
       -887220,
       887220,
@@ -135,7 +131,7 @@ describe("GUniPoolStatic", function () {
     });
 
     describe("deposit", function () {
-      it("Should deposit funds into GUniPoolStatic", async function () {
+      it("Should deposit funds into GUniPool", async function () {
         const result = await gUniPoolStatic.getMintAmounts(
           ethers.utils.parseEther("1"),
           ethers.utils.parseEther("1")
@@ -227,8 +223,6 @@ describe("GUniPoolStatic", function () {
             .updateGelatoParams(300, 5000, 5000, 5000, await user0.getAddress())
         ).to.be.reverted;
 
-        await expect(gUniPoolStatic.connect(gelato).setManagerFee(100)).to.be
-          .reverted;
         await expect(
           gUniPoolStatic
             .connect(gelato)
@@ -236,6 +230,8 @@ describe("GUniPoolStatic", function () {
         ).to.be.reverted;
         await expect(gUniPoolStatic.connect(gelato).renounceOwnership()).to.be
           .reverted;
+        await expect(gUniPoolStatic.connect(gelato).initializeManagerFee(100))
+          .to.be.reverted;
       });
     });
 
@@ -665,7 +661,7 @@ describe("GUniPoolStatic", function () {
       });
       describe("manager fees, withdrawals, and ownership", function () {
         it("should handle manager fees and ownership", async function () {
-          for (let i = 0; i < 6; i++) {
+          for (let i = 0; i < 3; i++) {
             await swapTest.washTrade(uniswapPool.address, "50000", 100, 3);
             await swapTest.washTrade(uniswapPool.address, "50000", 100, 3);
           }
@@ -678,7 +674,6 @@ describe("GUniPoolStatic", function () {
               .connect(gelato)
               .rebalance(slippagePrice, 5000, 2, token0.address)
           ).to.be.reverted;
-          await gUniPoolStatic.connect(user0).setManagerFee("5000");
           const tx = await gUniPoolStatic
             .connect(user0)
             .updateGelatoParams(
@@ -694,6 +689,7 @@ describe("GUniPoolStatic", function () {
             const executionTime = block.timestamp + 300;
             await network.provider.send("evm_mine", [executionTime]);
           }
+          await gUniPoolStatic.connect(user0).initializeManagerFee(5000);
           await gUniPoolStatic
             .connect(gelato)
             .rebalance(slippagePrice, 5000, 2, token0.address);
@@ -743,6 +739,9 @@ describe("GUniPoolStatic", function () {
 
           expect(gelatoLeft0).to.equal(ethers.constants.Zero);
           expect(gelatoLeft1).to.equal(ethers.constants.Zero);
+
+          await expect(gUniPoolStatic.connect(user0).initializeManagerFee(2000))
+            .to.be.reverted;
           const treasuryStart = await gUniPoolStatic.managerTreasury();
           expect(treasuryStart).to.equal(await user1.getAddress());
           await expect(gUniPoolStatic.connect(gelato).renounceOwnership()).to.be
@@ -757,6 +756,8 @@ describe("GUniPoolStatic", function () {
           await gUniPoolStatic.connect(user1).renounceOwnership();
           const treasuryEnd = await gUniPoolStatic.managerTreasury();
           expect(treasuryEnd).to.equal(ethers.constants.AddressZero);
+          const lastManager = await gUniPoolStatic.manager();
+          expect(lastManager).to.equal(ethers.constants.AddressZero);
         });
       });
     });

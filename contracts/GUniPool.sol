@@ -7,7 +7,7 @@ import {
 import {
     IUniswapV3SwapCallback
 } from "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
-import {GUniPoolStaticStorage} from "./abstract/GUniPoolStaticStorage.sol";
+import {GUniPoolStorage} from "./abstract/GUniPoolStorage.sol";
 import {
     IUniswapV3Pool
 } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
@@ -21,10 +21,10 @@ import {
     LiquidityAmounts
 } from "./vendor/uniswap/LiquidityAmounts.sol";
 
-contract GUniPoolStatic is
+contract GUniPool is
     IUniswapV3MintCallback,
     IUniswapV3SwapCallback,
-    GUniPoolStaticStorage
+    GUniPoolStorage
 {
     using SafeERC20 for IERC20;
     using TickMath for int24;
@@ -48,9 +48,9 @@ contract GUniPoolStatic is
     event Rebalance(int24 lowerTick_, int24 upperTick_);
 
     // solhint-disable-next-line max-line-length
-    constructor(address payable _gelato) GUniPoolStaticStorage(_gelato) {} // solhint-disable-line no-empty-blocks
+    constructor(address payable _gelato) GUniPoolStorage(_gelato) {} // solhint-disable-line no-empty-blocks
 
-    // solhint-disable-next-line function-max-lines, code-complexity
+    /// @notice Uniswap V3 callback fn, called back on pool.mint
     function uniswapV3MintCallback(
         uint256 amount0Owed,
         uint256 amount1Owed,
@@ -62,6 +62,7 @@ contract GUniPoolStatic is
         if (amount1Owed > 0) token1.safeTransfer(msg.sender, amount1Owed);
     }
 
+    /// @notice Uniswap v3 callback fn, called back on pool.swap
     function uniswapV3SwapCallback(
         int256 amount0Delta,
         int256 amount1Delta,
@@ -77,6 +78,13 @@ contract GUniPoolStatic is
 
     // User functions => Should be called via a Router
 
+    /// @notice mint fungible G-UNI tokens, fractional shares of a Uniswap V3 position
+    /// @dev to compute the amouint of tokens necessary to mint `mintAmount` see getMintAmounts
+    /// @param mintAmount The number of G-UNI tokens to mint
+    /// @param receiver The account to receive the minted tokens
+    /// @return amount0 amount of token0 transferred from msg.sender to mint `mintAmount`
+    /// @return amount1 amount of token1 transferred from msg.sender to mint `mintAmount`
+    /// @return liquidityMinted amount of liquidity added to the underlying Uniswap V3 position
     // solhint-disable-next-line function-max-lines, code-complexity
     function mint(uint256 mintAmount, address receiver)
         external
@@ -139,6 +147,12 @@ contract GUniPoolStatic is
         emit Minted(receiver, mintAmount, amount0, amount1, liquidityMinted);
     }
 
+    /// @notice burn G-UNI tokens (fractional shares of a Uniswap V3 position) and receive tokens
+    /// @param burnAmount The number of G-UNI tokens to burn
+    /// @param receiver The account to receive the underlying amounts of token0 and token1
+    /// @return amount0 amount of token0 transferred to receiver for burning `burnAmount`
+    /// @return amount1 amount of token1 transferred to receiver for burning `burnAmount`
+    /// @return liquidityBurned amount of liquidity removed from the underlying Uniswap V3 position
     // solhint-disable-next-line function-max-lines
     function burn(uint256 burnAmount, address receiver)
         external
@@ -205,6 +219,17 @@ contract GUniPoolStatic is
 
     // Manager Functions => Called by Pool Manager
 
+    /// @notice Change the range of underlying UniswapV3 position, only manager can call
+    /// @dev When changing the range the inventory of token0 and token1 may be rebalanced
+    /// with a swap to deposit as much liquidity as possible into the new position. Swap parameters
+    /// can be computed by simulating the whole operation: remove all liquidity, deposit as much
+    /// as possible into new position, then observe how much of token0 or token1 is leftover.
+    /// Swap a proportion of this leftover to deposit more liquidity into the position, since
+    /// any leftover will be unused and sit idle until the next rebalance.
+    /// @param newLowerTick The new lower bound of the position's range
+    /// @param newUpperTick The new upper bound of the position's range
+    /// @param swapThresholdPrice slippage parameter on the swap as a min or max sqrtPriceX96
+    /// @param swapAmountBPS amount of leftover token to swap in Basis Points. Pass 0 for no swap.
     function executiveRebalance(
         int24 newLowerTick,
         int24 newUpperTick,
@@ -243,6 +268,9 @@ contract GUniPoolStatic is
 
     // Gelatofied functions => Automatically called by Gelato
 
+    /// @notice Reinvest fees earned into underlying position, only gelato executors can call
+    /// Position bounds CANNOT be altered by gelato, only manager may via executiveRebalance.
+    /// Frequency of rebalance configured with gelatoRebalanceBPS, alterable by manager.
     function rebalance(
         uint160 swapThresholdPrice,
         uint256 swapAmountBPS,
@@ -254,6 +282,9 @@ contract GUniPoolStatic is
         emit Rebalance(lowerTick, upperTick);
     }
 
+    /// @notice withdraw manager fees accrued, only gelato executors can call.
+    /// Target account to receive fees is managerTreasury, alterable by manager.
+    /// Frequency of withdrawals configured with gelatoWithdrawBPS, alterable by manager.
     function withdrawManagerBalance(uint256 feeAmount, address feeToken)
         external
         gelatofy(feeAmount, feeToken)
@@ -278,6 +309,8 @@ contract GUniPoolStatic is
         }
     }
 
+    /// @notice withdraw gelato fees accrued, only gelato executors can call.
+    /// Frequency of withdrawals configured with gelatoWithdrawBPS, alterable by manager.
     function withdrawGelatoBalance(uint256 feeAmount, address feeToken)
         external
         gelatofy(feeAmount, feeToken)
@@ -329,6 +362,12 @@ contract GUniPoolStatic is
 
     // View functions
 
+    /// @notice compute maximum G-UNI tokens that can be minted from `amount0Max` and `amount1Max`
+    /// @param amount0Max The maximum amount of token0 to forward on mint
+    /// @param amount0Max The maximum amount of token1 to forward on mint
+    /// @return amount0 actual amount of token0 to forward when minting `mintAmount`
+    /// @return amount1 actual amount of token1 to forward when minting `mintAmount`
+    /// @return mintAmount maximum number of G-UNI tokens to mint
     function getMintAmounts(uint256 amount0Max, uint256 amount1Max)
         external
         view
@@ -365,6 +404,11 @@ contract GUniPoolStatic is
         }
     }
 
+    /// @notice compute total underlying holdings of the G-UNI token supply
+    /// includes current liquidity invested in uniswap position, current fees earned
+    /// and any uninvested leftover (but does not include manager or gelato fees accrued)
+    /// @return amount0Current current total underlying balance of token0
+    /// @return amount1Current current total underlying balance of token1
     // solhint-disable-next-line function-max-lines
     function getUnderlyingBalances()
         public
@@ -392,20 +436,22 @@ contract GUniPoolStatic is
 
         // compute current fees earned
         uint256 fee0 =
-            _computeFeesEarned(true, feeGrowthInside0Last, tick, _liquidity);
+            _computeFeesEarned(true, feeGrowthInside0Last, tick, _liquidity) +
+                uint256(tokensOwed0);
         uint256 fee1 =
-            _computeFeesEarned(false, feeGrowthInside1Last, tick, _liquidity);
+            _computeFeesEarned(false, feeGrowthInside1Last, tick, _liquidity) +
+                uint256(tokensOwed1);
+
+        (fee0, fee1) = _subtractAdminFees(fee0, fee1);
 
         // add any leftover in contract to current holdings
         amount0Current +=
             fee0 +
-            uint256(tokensOwed0) +
             token0.balanceOf(address(this)) -
             managerBalance0 -
             gelatoBalance0;
         amount1Current +=
             fee1 +
-            uint256(tokensOwed1) +
             token1.balanceOf(address(this)) -
             managerBalance1 -
             gelatoBalance1;
@@ -528,17 +574,13 @@ contract GUniPoolStatic is
 
         (, , , uint128 tokensOwed0, uint128 tokensOwed1) =
             pool.positions(_getPositionID());
+        uint256 fee0 = uint256(tokensOwed0) - burn0;
+        uint256 fee1 = uint256(tokensOwed1) - burn1;
 
-        burn0 += FullMath.mulDiv(
-            burnAmount,
-            uint256(tokensOwed0) - burn0,
-            supply
-        );
-        burn1 += FullMath.mulDiv(
-            burnAmount,
-            uint256(tokensOwed1) - burn1,
-            supply
-        );
+        (fee0, fee1) = _subtractAdminFees(fee0, fee1);
+
+        burn0 += FullMath.mulDiv(burnAmount, fee0, supply);
+        burn1 += FullMath.mulDiv(burnAmount, fee1, supply);
 
         // Withdraw tokens to user
         pool.collect(
@@ -584,7 +626,7 @@ contract GUniPoolStatic is
             amount1 -= amountDeposited1;
         }
 
-        if (amount0 > 0 || amount1 > 0) {
+        if ((amount0 > 0 || amount1 > 0) && swapAmountBPS > 0) {
             // We need to swap the leftover so were balanced, then deposit it
             bool zeroForOne = amount0 > amount1;
             if (checkSlippage) {
@@ -701,7 +743,6 @@ contract GUniPoolStatic is
             amount1Current,
             totalSupply
         );
-        //require(amount0 <= amount0Max && amount1 <= amount1Max, "overflow");
     }
 
     // solhint-disable-next-line function-max-lines
@@ -749,6 +790,17 @@ contract GUniPoolStatic is
                 0x100000000000000000000000000000000
             );
         }
+    }
+
+    function _subtractAdminFees(uint256 rawFee0, uint256 rawFee1)
+        private
+        view
+        returns (uint256 fee0, uint256 fee1)
+    {
+        uint256 deduct0 = (rawFee0 * (gelatoFeeBPS + managerFeeBPS)) / 10000;
+        uint256 deduct1 = (rawFee1 * (gelatoFeeBPS + managerFeeBPS)) / 10000;
+        fee0 = rawFee0 - deduct0;
+        fee1 = rawFee1 - deduct1;
     }
 
     function _checkSlippage(uint160 swapThresholdPrice, bool zeroForOne)

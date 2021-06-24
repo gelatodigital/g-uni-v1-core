@@ -89,12 +89,12 @@ const op = async (signer: SignerWithAddress) => {
     let gelatoUniV3Pool;
     if (i == 0) {
       gelatoUniV3Pool = await ethers.getContractAt(
-        "GUniPoolStatic",
+        "GUniPool",
         addresses.GUNIWethInst1
       );
     } else {
       gelatoUniV3Pool = await ethers.getContractAt(
-        "GUniPoolStatic",
+        "GUniPool",
         addresses.GUNIWethInst2
       );
     }
