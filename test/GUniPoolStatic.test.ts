@@ -762,8 +762,6 @@ describe("GUniPoolStatic", function () {
           expect(treasuryEnd).to.equal(ethers.constants.AddressZero);
           const lastManager = await gUniPoolStatic.manager();
           expect(lastManager).to.equal(ethers.constants.AddressZero);
-          const firstManager = await gUniPoolStatic.initialManager();
-          expect(firstManager).to.equal(await user0.getAddress());
         });
       });
     });

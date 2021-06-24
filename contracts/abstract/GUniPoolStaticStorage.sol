@@ -40,7 +40,6 @@ abstract contract GUniPoolStaticStorage is
 
     uint16 public managerFeeBPS;
     address public managerTreasury;
-    address public initialManager;
 
     uint256 public managerBalance0;
     uint256 public managerBalance1;
@@ -93,7 +92,6 @@ abstract contract GUniPoolStaticStorage is
         token0 = IERC20(pool.token0());
         token1 = IERC20(pool.token1());
         managerFeeBPS = _managerFeeBPS;
-        initialManager = _manager_; // initial manager is used in create2 address calculation
 
         // these variables can be udpated by the manager
         gelatoSlippageInterval = 5 minutes; // default: last five minutes;
