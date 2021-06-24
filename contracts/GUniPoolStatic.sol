@@ -78,7 +78,7 @@ contract GUniPoolStatic is
 
     // User functions => Should be called via a Router
 
-    /// @notice mint fungible G-UNI tokens, fractional shares of a Uniswap V3 position on a pool
+    /// @notice mint fungible G-UNI tokens, fractional shares of a Uniswap V3 position
     /// @dev to compute the amouint of tokens necessary to mint `mintAmount` see getMintAmounts
     /// @param mintAmount The number of G-UNI tokens to mint
     /// @param receiver The account to receive the minted tokens
@@ -147,7 +147,7 @@ contract GUniPoolStatic is
         emit Minted(receiver, mintAmount, amount0, amount1, liquidityMinted);
     }
 
-    /// @notice burn G-UNI tokens, fractional shares of a Uniswap V3 position, and receive tokens
+    /// @notice burn G-UNI tokens (fractional shares of a Uniswap V3 position) and receive tokens
     /// @param burnAmount The number of G-UNI tokens to burn
     /// @param receiver The account to receive the underlying amounts of token0 and token1
     /// @return amount0 amount of token0 transferred to receiver for burning `burnAmount`
@@ -442,8 +442,7 @@ contract GUniPoolStatic is
             _computeFeesEarned(false, feeGrowthInside1Last, tick, _liquidity) +
                 uint256(tokensOwed1);
 
-        fee0 -= (fee0 * (gelatoFeeBPS + managerFeeBPS)) / 10000;
-        fee1 -= (fee1 * (gelatoFeeBPS + managerFeeBPS)) / 10000;
+        (fee0, fee1) = _subtractAdminFees(fee0, fee1);
 
         // add any leftover in contract to current holdings
         amount0Current +=
@@ -578,8 +577,7 @@ contract GUniPoolStatic is
         uint256 fee0 = uint256(tokensOwed0) - burn0;
         uint256 fee1 = uint256(tokensOwed1) - burn1;
 
-        fee0 -= (fee0 * (gelatoFeeBPS + managerFeeBPS)) / 10000;
-        fee1 -= (fee1 * (gelatoFeeBPS + managerFeeBPS)) / 10000;
+        (fee0, fee1) = _subtractAdminFees(fee0, fee1);
 
         burn0 += FullMath.mulDiv(burnAmount, fee0, supply);
         burn1 += FullMath.mulDiv(burnAmount, fee1, supply);
@@ -792,6 +790,17 @@ contract GUniPoolStatic is
                 0x100000000000000000000000000000000
             );
         }
+    }
+
+    function _subtractAdminFees(uint256 rawFee0, uint256 rawFee1)
+        private
+        view
+        returns (uint256 fee0, uint256 fee1)
+    {
+        uint256 deduct0 = (rawFee0 * (gelatoFeeBPS + managerFeeBPS)) / 10000;
+        uint256 deduct1 = (rawFee1 * (gelatoFeeBPS + managerFeeBPS)) / 10000;
+        fee0 = rawFee0 - deduct0;
+        fee1 = rawFee1 - deduct1;
     }
 
     function _checkSlippage(uint160 swapThresholdPrice, bool zeroForOne)
