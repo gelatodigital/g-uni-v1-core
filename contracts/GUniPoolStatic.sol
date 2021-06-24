@@ -51,7 +51,6 @@ contract GUniPoolStatic is
     constructor(address payable _gelato) GUniPoolStaticStorage(_gelato) {} // solhint-disable-line no-empty-blocks
 
     /// @notice Uniswap V3 callback fn, called back on pool.mint
-    // solhint-disable-next-line function-max-lines, code-complexity
     function uniswapV3MintCallback(
         uint256 amount0Owed,
         uint256 amount1Owed,
