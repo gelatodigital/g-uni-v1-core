@@ -1,4 +1,4 @@
-[![CircleCI](https://circleci.com/gh/gelatodigital/g-uni-v1-core/tree/master.svg?style=svg)](https://circleci.com/gh/gelatodigital/g-uni-v1-core/tree/master)
+[![CircleCI](https://circleci.com/gh/gelatodigital/g-uni-v1-core/tree/master.svg?style=svg&circle-token=0a89a0c369a448314a37b2f2312cc1a3e5d3d4e8)](https://circleci.com/gh/gelatodigital/g-uni-v1-core/tree/master)
 [![Coverage Status](https://coveralls.io/repos/github/gelatodigital/uni-v3-lp/badge.svg?branch=master&t=IlcAEC)](https://coveralls.io/github/gelatodigital/uni-v3-lp?branch=master)
 
 # G-UNI v1 Core
