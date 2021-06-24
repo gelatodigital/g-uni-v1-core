@@ -22,7 +22,7 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     proxy: {
       proxyContract: "EIP173ProxyWithReceive",
     },
-    args: [addresses.WethInstV3Pool, addresses.Gelato],
+    args: [addresses.Gelato],
   });
 };
 
