@@ -8,6 +8,7 @@ import {
   SwapTest,
   GUniPool,
   GUniFactory,
+  IEIP173Proxy,
 } from "../typechain";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signer-with-address";
 
@@ -47,6 +48,7 @@ describe("GUniPool", function () {
   let gUniFactory: GUniFactory;
   let gelato: SignerWithAddress;
   let uniswapPoolAddress: string;
+  let implementationAddress: string;
 
   before(async function () {
     [user0, user1, user2, gelato] = await ethers.getSigners();
@@ -108,6 +110,8 @@ describe("GUniPool", function () {
       await gelato.getAddress()
     );
 
+    implementationAddress = gUniImplementation.address;
+
     const gUniFactoryFactory = await ethers.getContractFactory("GUniFactory");
 
     gUniFactory = (await gUniFactoryFactory.deploy(
@@ -115,7 +119,7 @@ describe("GUniPool", function () {
     )) as GUniFactory;
 
     await gUniFactory.initialize(
-      gUniImplementation.address,
+      implementationAddress,
       await user0.getAddress()
     );
 
@@ -805,6 +809,99 @@ describe("GUniPool", function () {
           expect(treasuryEnd).to.equal(ethers.constants.AddressZero);
           const lastManager = await gUniPool.manager();
           expect(lastManager).to.equal(ethers.constants.AddressZero);
+        });
+      });
+      describe("factory management", function () {
+        it("should handle implementation upgrades and whitelisting", async function () {
+          const manager = await gUniFactory.manager();
+          expect(manager).to.equal(await user0.getAddress());
+
+          // only manager should be able to call permissioned functions
+          await expect(
+            gUniFactory.connect(gelato).upgradePools([gUniPool.address])
+          ).to.be.reverted;
+          await expect(
+            gUniFactory
+              .connect(gelato)
+              .upgradePoolsAndCall([gUniPool.address], ["0x"])
+          ).to.be.reverted;
+          await expect(
+            gUniFactory
+              .connect(gelato)
+              .transferPools([gUniPool.address], ethers.constants.AddressZero)
+          ).to.be.reverted;
+          await expect(
+            gUniFactory
+              .connect(gelato)
+              .setPoolImplementation(ethers.constants.AddressZero)
+          ).to.be.reverted;
+          await expect(
+            gUniFactory
+              .connect(gelato)
+              .verifyPoolCreator(ethers.constants.AddressZero)
+          ).to.be.reverted;
+          await expect(
+            gUniFactory
+              .connect(gelato)
+              .unverifyPoolCreator(ethers.constants.AddressZero)
+          ).to.be.reverted;
+
+          const implementationBefore = await gUniFactory.poolImplementation();
+          expect(implementationBefore).to.equal(implementationAddress);
+          await gUniFactory.setPoolImplementation(ethers.constants.AddressZero);
+          const implementationAfter = await gUniFactory.poolImplementation();
+          expect(implementationAfter).to.equal(ethers.constants.AddressZero);
+          const supply1 = await gUniPool.totalSupply();
+          await gUniFactory.upgradePools([gUniPool.address]);
+          await expect(gUniPool.totalSupply()).to.be.reverted;
+          const proxyAdmin = await gUniFactory.poolProxyAdmin(gUniPool.address);
+          expect(proxyAdmin).to.equal(gUniFactory.address);
+          const isNotImmutable = await gUniFactory.isPoolImmutable(
+            gUniPool.address
+          );
+          expect(isNotImmutable).to.be.false;
+          await gUniFactory.transferPools(
+            [gUniPool.address],
+            await user0.getAddress()
+          );
+          await expect(gUniFactory.upgradePools([gUniPool.address])).to.be
+            .reverted;
+          const poolProxy = (await ethers.getContractAt(
+            "IEIP173Proxy",
+            gUniPool.address
+          )) as IEIP173Proxy;
+          await poolProxy.connect(user0).upgradeTo(implementationAddress);
+          const supply2 = await gUniPool.totalSupply();
+          expect(supply1).to.equal(supply2);
+          await poolProxy.transferProxyAdmin(ethers.constants.AddressZero);
+          const isImmutable = await gUniFactory.isPoolImmutable(
+            gUniPool.address
+          );
+          expect(isImmutable).to.be.true;
+          const isPoolCreator = await gUniFactory.isPoolCreator(
+            await user0.getAddress()
+          );
+          expect(isPoolCreator).to.be.true;
+          const isNotVerified = await gUniFactory.isVerifiedCreator(
+            await user0.getAddress()
+          );
+          expect(isNotVerified).to.be.false;
+          await gUniFactory.verifyPoolCreator(await user0.getAddress());
+          const isVerified = await gUniFactory.isVerifiedCreator(
+            await user0.getAddress()
+          );
+          expect(isVerified).to.be.true;
+          await gUniFactory.unverifyPoolCreator(await user0.getAddress());
+          const isNotVerified2 = await gUniFactory.isVerifiedCreator(
+            await user0.getAddress()
+          );
+          expect(isNotVerified2).to.be.false;
+          await gUniFactory.transferOwnership(await user1.getAddress());
+          const manager2 = await gUniFactory.manager();
+          expect(manager2).to.equal(await user1.getAddress());
+          await gUniFactory.connect(user1).renounceOwnership();
+          const manager3 = await gUniFactory.manager();
+          expect(manager3).to.equal(ethers.constants.AddressZero);
         });
       });
     });

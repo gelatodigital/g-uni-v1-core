@@ -111,22 +111,40 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
         emit PoolCreated(uniPool, msg.sender, pool);
     }
 
-    function upgradeImplementations(address[] memory pools)
-        external
-        onlyManager
-    {
+    function upgradePools(address[] memory pools) external onlyManager {
         for (uint256 i = 0; i < pools.length; i++) {
             IEIP173Proxy(pools[i]).upgradeTo(poolImplementation);
         }
     }
 
-    function upgradeImplmentationsAndCall(
-        address[] memory pools,
-        bytes calldata data
-    ) external onlyManager {
+    function upgradePoolsAndCall(address[] memory pools, bytes[] calldata datas)
+        external
+        onlyManager
+    {
+        require(pools.length == datas.length, "mismatching array length");
         for (uint256 i = 0; i < pools.length; i++) {
-            IEIP173Proxy(pools[i]).upgradeToAndCall(poolImplementation, data);
+            IEIP173Proxy(pools[i]).upgradeToAndCall(
+                poolImplementation,
+                datas[i]
+            );
         }
+    }
+
+    function transferPools(address[] memory pools, address newAdmin)
+        external
+        onlyManager
+    {
+        for (uint256 i = 0; i < pools.length; i++) {
+            IEIP173Proxy(pools[i]).transferProxyAdmin(newAdmin);
+        }
+    }
+
+    function poolProxyAdmin(address pool) public view returns (address) {
+        return IEIP173Proxy(pool).proxyAdmin();
+    }
+
+    function isPoolImmutable(address pool) external view returns (bool) {
+        return address(0) == poolProxyAdmin(pool);
     }
 
     function getTokenOrder(address tokenA, address tokenB)

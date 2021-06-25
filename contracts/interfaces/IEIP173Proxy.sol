@@ -2,7 +2,7 @@
 pragma solidity 0.8.4;
 
 interface IEIP173Proxy {
-    function proxyAdmin() external returns (address);
+    function proxyAdmin() external view returns (address);
 
     function transferProxyAdmin(address newAdmin) external;
 
