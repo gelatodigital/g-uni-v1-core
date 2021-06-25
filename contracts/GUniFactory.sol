@@ -14,12 +14,10 @@ import {
 } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 contract GUniFactory is GUniFactoryStorage, IGUniFactory {
-    address public constant FACTORY =
-        0x1F98431c8aD98523631AE4a59f267346ea31F984;
     bytes32 public constant PROXY_BYTECODE_HASH =
         keccak256(type(GUniEIP173Proxy).creationCode);
 
-    constructor() {} // solhint-disable-line no-empty-blocks
+    constructor(address _factory) GUniFactoryStorage(_factory) {} // solhint-disable-line no-empty-blocks, max-line-length
 
     function getPoolAddress(
         address manager,
@@ -81,7 +79,7 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
         try IERC20Metadata(token0).symbol() returns (string memory sym0) {
             symbol0 = sym0;
         } catch {} // solhint-disable-line no-empty-blocks
-        try IERC20Metadata(token0).name() returns (string memory sym1) {
+        try IERC20Metadata(token1).symbol() returns (string memory sym1) {
             symbol1 = sym1;
         } catch {} // solhint-disable-line no-empty-blocks
 
@@ -96,7 +94,8 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
             );
 
         address uniPool =
-            IUniswapV3Factory(FACTORY).getPool(token0, token1, uniFee);
+            IUniswapV3Factory(factory).getPool(token0, token1, uniFee);
+
         IGUniPoolStorage(pool).initialize(
             name,
             "G-UNI",
@@ -150,15 +149,15 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
         pure
         returns (string memory)
     {
-        bytes memory b = new bytes(3);
-        unchecked {
-            for (uint256 i = 0; i < 3; i++) {
-                b[i] = bytes1(
-                    uint8(uint256(uint160(addr)) / (2**(8 * (19 - i))))
-                );
-            }
+        bytes32 value = bytes32(uint256(uint160(addr)));
+        bytes memory alphabet = "0123456789abcdef";
+
+        bytes memory str = new bytes(6);
+        for (uint256 i = 0; i < 3; i++) {
+            str[i * 2] = alphabet[uint256(uint8(value[i + 12] >> 4))];
+            str[1 + i * 2] = alphabet[uint256(uint8(value[i + 12] & 0x0f))];
         }
-        return string(b);
+        return string(str);
     }
 
     function _append(

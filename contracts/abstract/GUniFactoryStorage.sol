@@ -24,6 +24,7 @@ contract GUniFactoryStorage is
     ConstructorParams internal _constructorParams;
 
     address public immutable override deployer;
+    address public immutable factory;
     address public poolImplementation;
     mapping(address => bool) public isPoolCreator;
     mapping(address => bool) public isVerifiedCreator;
@@ -37,12 +38,18 @@ contract GUniFactoryStorage is
 
     event UpdateVerifyCreator(address poolCreator, bool isVerified);
 
-    constructor() {
+    constructor(address _uniswapFactory) {
+        factory = _uniswapFactory;
         deployer = msg.sender;
     }
 
-    function initialize(address _manager_) external override initializer {
+    function initialize(address _implementation, address _manager_)
+        external
+        override
+        initializer
+    {
         require(msg.sender == deployer, "only deployer");
+        poolImplementation = _implementation;
         _manager = _manager_;
     }
 

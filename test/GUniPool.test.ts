@@ -7,6 +7,7 @@ import {
   IUniswapV3Pool,
   SwapTest,
   GUniPool,
+  GUniFactory,
 } from "../typechain";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signer-with-address";
 
@@ -42,7 +43,8 @@ describe("GUniPool", function () {
   let user1: SignerWithAddress;
   let user2: SignerWithAddress;
   let swapTest: SwapTest;
-  let gUniPoolStatic: GUniPool;
+  let gUniPool: GUniPool;
+  let gUniFactory: GUniFactory;
   let gelato: SignerWithAddress;
   let uniswapPoolAddress: string;
 
@@ -101,69 +103,90 @@ describe("GUniPool", function () {
 
     await uniswapPool.increaseObservationCardinalityNext("5");
 
-    const gUniPoolStaticFactory = await ethers.getContractFactory("GUniPool");
-
-    gUniPoolStatic = (await gUniPoolStaticFactory.deploy(
+    const gUniPoolFactory = await ethers.getContractFactory("GUniPool");
+    const gUniImplementation = await gUniPoolFactory.deploy(
       await gelato.getAddress()
-    )) as GUniPool;
+    );
 
-    await gUniPoolStatic.initialize(
-      "G-UNI TEST POOL",
-      "G-UNI",
-      uniswapPoolAddress,
-      0,
-      -887220,
-      887220,
+    const gUniFactoryFactory = await ethers.getContractFactory("GUniFactory");
+
+    gUniFactory = (await gUniFactoryFactory.deploy(
+      uniswapFactory.address
+    )) as GUniFactory;
+
+    await gUniFactory.initialize(
+      gUniImplementation.address,
       await user0.getAddress()
     );
+
+    await gUniFactory.createPool(
+      token0.address,
+      token1.address,
+      3000,
+      0,
+      -887220,
+      887220
+    );
+
+    const gUniPoolAddress = await gUniFactory.getPoolAddress(
+      await user0.getAddress(),
+      token0.address,
+      token1.address,
+      3000
+    );
+
+    gUniPool = (await ethers.getContractAt(
+      "GUniPool",
+      gUniPoolAddress
+    )) as GUniPool;
   });
 
   describe("Before liquidity deposited", function () {
     beforeEach(async function () {
       await token0.approve(
-        gUniPoolStatic.address,
+        gUniPool.address,
         ethers.utils.parseEther("1000000")
       );
       await token1.approve(
-        gUniPoolStatic.address,
+        gUniPool.address,
         ethers.utils.parseEther("1000000")
       );
     });
 
     describe("deposit", function () {
-      it("Should deposit funds into GUniPool", async function () {
-        const result = await gUniPoolStatic.getMintAmounts(
+      it("should deposit funds into GUniPool", async function () {
+        const result = await gUniPool.getMintAmounts(
           ethers.utils.parseEther("1"),
           ethers.utils.parseEther("1")
         );
-        await gUniPoolStatic.mint(result.mintAmount, await user0.getAddress());
+        await gUniPool.mint(result.mintAmount, await user0.getAddress());
 
         expect(await token0.balanceOf(uniswapPool.address)).to.be.gt(0);
         expect(await token1.balanceOf(uniswapPool.address)).to.be.gt(0);
         const [liquidity] = await uniswapPool.positions(
-          position(gUniPoolStatic.address, -887220, 887220)
+          position(gUniPool.address, -887220, 887220)
         );
         expect(liquidity).to.be.gt(0);
-        const supply = await gUniPoolStatic.totalSupply();
+        const supply = await gUniPool.totalSupply();
         expect(supply).to.be.gt(0);
-        const result2 = await gUniPoolStatic.getMintAmounts(
+        const result2 = await gUniPool.getMintAmounts(
           ethers.utils.parseEther("0.5"),
           ethers.utils.parseEther("1")
         );
-        await gUniPoolStatic.mint(result2.mintAmount, await user0.getAddress());
+        await gUniPool.mint(result2.mintAmount, await user0.getAddress());
         const [liquidity2] = await uniswapPool.positions(
-          position(gUniPoolStatic.address, -887220, 887220)
+          position(gUniPool.address, -887220, 887220)
         );
         expect(liquidity2).to.be.gt(liquidity);
 
-        await gUniPoolStatic.transfer(
+        await gUniPool.transfer(
           await user1.getAddress(),
           ethers.utils.parseEther("1")
         );
-        await gUniPoolStatic
+        await gUniPool
           .connect(user1)
           .approve(await user0.getAddress(), ethers.utils.parseEther("1"));
-        await gUniPoolStatic
+        await gUniPool
           .connect(user0)
           .transferFrom(
             await user1.getAddress(),
@@ -171,19 +194,21 @@ describe("GUniPool", function () {
             ethers.utils.parseEther("1")
           );
 
-        const decimals = await gUniPoolStatic.decimals();
-        const symbol = await gUniPoolStatic.symbol();
-        const name = await gUniPoolStatic.name();
+        const decimals = await gUniPool.decimals();
+        const symbol = await gUniPool.symbol();
+        const name = await gUniPool.name();
         expect(symbol).to.equal("G-UNI");
         expect(decimals).to.equal(18);
-        expect(name).to.equal("G-UNI TEST POOL");
+        expect(name.substring(0, name.length - 6)).to.equal(
+          "Gelato Uniswap V3 TOKEN/TOKEN LP 0x"
+        );
       });
     });
 
     describe("onlyGelato", function () {
       it("should fail if not called by gelato", async function () {
         await expect(
-          gUniPoolStatic
+          gUniPool
             .connect(user1)
             .rebalance(
               encodePriceSqrt("10", "1"),
@@ -194,17 +219,15 @@ describe("GUniPool", function () {
             )
         ).to.be.reverted;
         await expect(
-          gUniPoolStatic
-            .connect(user1)
-            .withdrawManagerBalance(1, token0.address)
+          gUniPool.connect(user1).withdrawManagerBalance(1, token0.address)
         ).to.be.reverted;
         await expect(
-          gUniPoolStatic.connect(user1).withdrawGelatoBalance(1, token0.address)
+          gUniPool.connect(user1).withdrawGelatoBalance(1, token0.address)
         ).to.be.reverted;
       });
       it("should fail if no fees earned", async function () {
         await expect(
-          gUniPoolStatic
+          gUniPool
             .connect(gelato)
             .rebalance(
               encodePriceSqrt("10", "1"),
@@ -215,14 +238,10 @@ describe("GUniPool", function () {
             )
         ).to.be.reverted;
         await expect(
-          gUniPoolStatic
-            .connect(gelato)
-            .withdrawManagerBalance(1, token0.address)
+          gUniPool.connect(gelato).withdrawManagerBalance(1, token0.address)
         ).to.be.reverted;
         await expect(
-          gUniPoolStatic
-            .connect(gelato)
-            .withdrawGelatoBalance(1, token0.address)
+          gUniPool.connect(gelato).withdrawGelatoBalance(1, token0.address)
         ).to.be.reverted;
       });
     });
@@ -230,46 +249,44 @@ describe("GUniPool", function () {
     describe("onlyManager", function () {
       it("should fail if not called by manager", async function () {
         await expect(
-          gUniPoolStatic
+          gUniPool
             .connect(gelato)
             .updateGelatoParams(300, 5000, 5000, 5000, await user0.getAddress())
         ).to.be.reverted;
 
         await expect(
-          gUniPoolStatic
-            .connect(gelato)
-            .transferOwnership(await user1.getAddress())
+          gUniPool.connect(gelato).transferOwnership(await user1.getAddress())
         ).to.be.reverted;
-        await expect(gUniPoolStatic.connect(gelato).renounceOwnership()).to.be
+        await expect(gUniPool.connect(gelato).renounceOwnership()).to.be
           .reverted;
-        await expect(gUniPoolStatic.connect(gelato).initializeManagerFee(100))
-          .to.be.reverted;
+        await expect(gUniPool.connect(gelato).initializeManagerFee(100)).to.be
+          .reverted;
       });
     });
 
     describe("After liquidity deposited", function () {
       beforeEach(async function () {
-        const result = await gUniPoolStatic.getMintAmounts(
+        const result = await gUniPool.getMintAmounts(
           ethers.utils.parseEther("1"),
           ethers.utils.parseEther("1")
         );
-        await gUniPoolStatic.mint(result.mintAmount, await user0.getAddress());
+        await gUniPool.mint(result.mintAmount, await user0.getAddress());
       });
 
       describe("withdrawal", function () {
         it("should burn LP tokens and withdraw funds", async function () {
-          await gUniPoolStatic.burn(
-            (await gUniPoolStatic.totalSupply()).div("2"),
+          await gUniPool.burn(
+            (await gUniPool.totalSupply()).div("2"),
             await user0.getAddress()
           );
           const [liquidity2] = await uniswapPool.positions(
-            position(gUniPoolStatic.address, -887220, 887220)
+            position(gUniPool.address, -887220, 887220)
           );
           expect(liquidity2).to.be.gt(0);
-          expect(await gUniPoolStatic.totalSupply()).to.be.gt(0);
-          expect(
-            await gUniPoolStatic.balanceOf(await user0.getAddress())
-          ).to.equal(ethers.utils.parseEther("0.5"));
+          expect(await gUniPool.totalSupply()).to.be.gt(0);
+          expect(await gUniPool.balanceOf(await user0.getAddress())).to.equal(
+            ethers.utils.parseEther("0.5")
+          );
         });
       });
 
@@ -304,14 +321,14 @@ describe("GUniPool", function () {
         describe("reinvest fees", function () {
           it("should redeposit fees with a rebalance", async function () {
             const [liquidityOld] = await uniswapPool.positions(
-              position(gUniPoolStatic.address, -887220, 887220)
+              position(gUniPool.address, -887220, 887220)
             );
             const gelatoBalanceBefore = await token1.balanceOf(
               await gelato.getAddress()
             );
 
             await expect(
-              gUniPoolStatic
+              gUniPool
                 .connect(gelato)
                 .rebalance(
                   encodePriceSqrt("1", "1"),
@@ -322,7 +339,7 @@ describe("GUniPool", function () {
                 )
             ).to.be.reverted;
 
-            const tx = await gUniPoolStatic.updateGelatoParams(
+            const tx = await gUniPool.updateGelatoParams(
               "1000",
               "100",
               "500",
@@ -340,7 +357,7 @@ describe("GUniPool", function () {
               sqrtPriceX96.div(ethers.BigNumber.from("25"))
             );
 
-            await gUniPoolStatic
+            await gUniPool
               .connect(gelato)
               .rebalance(slippagePrice, 5000, true, 5, token1.address);
 
@@ -353,7 +370,7 @@ describe("GUniPool", function () {
             ).to.be.equal(5);
 
             const [liquidityNew] = await uniswapPool.positions(
-              position(gUniPoolStatic.address, -887220, 887220)
+              position(gUniPool.address, -887220, 887220)
             );
             expect(liquidityNew).to.be.gt(liquidityOld);
           });
@@ -362,10 +379,10 @@ describe("GUniPool", function () {
         describe("executive rebalance", function () {
           it("should change the ticks and redeposit", async function () {
             const [liquidityOld] = await uniswapPool.positions(
-              position(gUniPoolStatic.address, -887220, 887220)
+              position(gUniPool.address, -887220, 887220)
             );
 
-            const tx = await gUniPoolStatic
+            const tx = await gUniPool
               .connect(user0)
               .updateGelatoParams(
                 "5000",
@@ -382,7 +399,7 @@ describe("GUniPool", function () {
               2
             );
             await token1.transfer(
-              gUniPoolStatic.address,
+              gUniPool.address,
               ethers.utils.parseEther("1")
             );
             if (network.provider && user0.provider && tx.blockHash) {
@@ -390,50 +407,47 @@ describe("GUniPool", function () {
               const executionTime = block.timestamp + 300;
               await network.provider.send("evm_mine", [executionTime]);
             }
-            const lowerTickBefore = await gUniPoolStatic.lowerTick();
-            const upperTickBefore = await gUniPoolStatic.upperTick();
+            const lowerTickBefore = await gUniPool.lowerTick();
+            const upperTickBefore = await gUniPool.upperTick();
             expect(lowerTickBefore).to.equal(-887220);
             expect(upperTickBefore).to.equal(887220);
             const { sqrtPriceX96 } = await uniswapPool.slot0();
             const slippagePrice = sqrtPriceX96.add(
               sqrtPriceX96.div(ethers.BigNumber.from("25"))
             );
-            await gUniPoolStatic
+            
+            await gUniPool
               .connect(user0)
               .executiveRebalance(-443580, 443580, slippagePrice, 5000, false);
 
-            const lowerTickAfter = await gUniPoolStatic.lowerTick();
-            const upperTickAfter = await gUniPoolStatic.upperTick();
+            const lowerTickAfter = await gUniPool.lowerTick();
+            const upperTickAfter = await gUniPool.upperTick();
             expect(lowerTickAfter).to.equal(-443580);
             expect(upperTickAfter).to.equal(443580);
 
             const [liquidityOldAfter] = await uniswapPool.positions(
-              position(gUniPoolStatic.address, -887220, 887220)
+              position(gUniPool.address, -887220, 887220)
             );
             expect(liquidityOldAfter).to.equal("0");
             expect(liquidityOldAfter).to.be.lt(liquidityOld);
 
             const [liquidityNew] = await uniswapPool.positions(
-              position(gUniPoolStatic.address, -443580, 443580)
+              position(gUniPool.address, -443580, 443580)
             );
             expect(liquidityNew).to.be.gt(liquidityOld);
 
-            const gelatoBalance0 = await gUniPoolStatic.gelatoBalance0();
-            const gelatoBalance1 = await gUniPoolStatic.gelatoBalance1();
+            const gelatoBalance0 = await gUniPool.gelatoBalance0();
+            const gelatoBalance1 = await gUniPool.gelatoBalance1();
 
             // console.log(gelatoBalance0.toString(), gelatoBalance1.toString());
 
-            await gUniPoolStatic.burn(
-              await gUniPoolStatic.totalSupply(),
+            await gUniPool.burn(
+              await gUniPool.totalSupply(),
               await user0.getAddress()
             );
 
-            const contractBalance0 = await token0.balanceOf(
-              gUniPoolStatic.address
-            );
-            const contractBalance1 = await token1.balanceOf(
-              gUniPoolStatic.address
-            );
+            const contractBalance0 = await token0.balanceOf(gUniPool.address);
+            const contractBalance1 = await token1.balanceOf(gUniPool.address);
             // console.log(
             //   contractBalance0.toString(),
             //   contractBalance1.toString()
@@ -464,28 +478,26 @@ describe("GUniPool", function () {
             );
             await token0
               .connect(user1)
-              .approve(gUniPoolStatic.address, ethers.constants.MaxUint256);
+              .approve(gUniPool.address, ethers.constants.MaxUint256);
             await token1
               .connect(user1)
-              .approve(gUniPoolStatic.address, ethers.constants.MaxUint256);
-            const result = await gUniPoolStatic.getMintAmounts(
+              .approve(gUniPool.address, ethers.constants.MaxUint256);
+            const result = await gUniPool.getMintAmounts(
               ethers.utils.parseEther("9"),
               ethers.utils.parseEther("9")
             );
-            await gUniPoolStatic
-              .connect(user1)
-              .mint(result.mintAmount, user1Address);
+            await gUniPool.connect(user1).mint(result.mintAmount, user1Address);
             await token0
               .connect(user2)
-              .approve(gUniPoolStatic.address, ethers.constants.MaxUint256);
+              .approve(gUniPool.address, ethers.constants.MaxUint256);
             await token1
               .connect(user2)
-              .approve(gUniPoolStatic.address, ethers.constants.MaxUint256);
-            const result2 = await gUniPoolStatic.getMintAmounts(
+              .approve(gUniPool.address, ethers.constants.MaxUint256);
+            const result2 = await gUniPool.getMintAmounts(
               ethers.utils.parseEther("10"),
               ethers.utils.parseEther("10")
             );
-            await gUniPoolStatic
+            await gUniPool
               .connect(user2)
               .mint(result2.mintAmount, user2Address);
 
@@ -499,9 +511,9 @@ describe("GUniPool", function () {
               ethers.utils.parseEther("1000").sub(balanceAfterMint1.toString())
             ).to.be.gt(ethers.BigNumber.from("1"));
 
-            await gUniPoolStatic
+            await gUniPool
               .connect(user2)
-              .burn(await gUniPoolStatic.balanceOf(user2Address), user2Address);
+              .burn(await gUniPool.balanceOf(user2Address), user2Address);
             const balanceAfterBurn0 = await token0.balanceOf(user2Address);
             const balanceAfterBurn1 = await token0.balanceOf(user2Address);
             expect(
@@ -539,12 +551,12 @@ describe("GUniPool", function () {
             sqrtPriceX96.div(ethers.BigNumber.from("25"))
           );
           await expect(
-            gUniPoolStatic
+            gUniPool
               .connect(gelato)
               .rebalance(slippagePrice, 1000, true, 10, token0.address)
           ).to.be.reverted;
 
-          const tx = await gUniPoolStatic
+          const tx = await gUniPool
             .connect(user0)
             .updateGelatoParams(
               "5000",
@@ -558,28 +570,28 @@ describe("GUniPool", function () {
             const executionTime = block.timestamp + 300;
             await network.provider.send("evm_mine", [executionTime]);
           }
-          await gUniPoolStatic
+          await gUniPool
             .connect(gelato)
             .rebalance(0, 0, true, 2, token0.address);
 
-          let contractBalance0 = await token0.balanceOf(gUniPoolStatic.address);
-          let contractBalance1 = await token1.balanceOf(gUniPoolStatic.address);
+          let contractBalance0 = await token0.balanceOf(gUniPool.address);
+          let contractBalance1 = await token1.balanceOf(gUniPool.address);
           // console.log(contractBalance0.toString(), contractBalance1.toString());
           await token0.transfer(await user1.getAddress(), "10000000000");
           await token1.transfer(await user1.getAddress(), "10000000000");
           await token0
             .connect(user1)
-            .approve(gUniPoolStatic.address, "10000000000000");
+            .approve(gUniPool.address, "10000000000000");
           await token1
             .connect(user1)
-            .approve(gUniPoolStatic.address, "10000000000000");
-          const result = await gUniPoolStatic.getMintAmounts(1000000, 1000000);
-          await gUniPoolStatic
+            .approve(gUniPool.address, "10000000000000");
+          const result = await gUniPool.getMintAmounts(1000000, 1000000);
+          await gUniPool
             .connect(user1)
             .mint(result.mintAmount, await user1.getAddress());
 
-          contractBalance0 = await token0.balanceOf(gUniPoolStatic.address);
-          contractBalance1 = await token1.balanceOf(gUniPoolStatic.address);
+          contractBalance0 = await token0.balanceOf(gUniPool.address);
+          contractBalance1 = await token1.balanceOf(gUniPool.address);
           // console.log(contractBalance0.toString(), contractBalance1.toString());
 
           await swapTest.washTrade(uniswapPool.address, "50000", 100, 3);
@@ -597,11 +609,11 @@ describe("GUniPool", function () {
           }
           const { sqrtPriceX96: p2 } = await uniswapPool.slot0();
           const slippagePrice2 = p2.sub(p2.div(ethers.BigNumber.from("50")));
-          await gUniPoolStatic
+          await gUniPool
             .connect(gelato)
             .rebalance(slippagePrice2, 5000, true, 1, token0.address);
-          contractBalance0 = await token0.balanceOf(gUniPoolStatic.address);
-          contractBalance1 = await token1.balanceOf(gUniPoolStatic.address);
+          contractBalance0 = await token0.balanceOf(gUniPool.address);
+          contractBalance1 = await token1.balanceOf(gUniPool.address);
           // console.log(contractBalance0.toString(), contractBalance1.toString());
 
           // TEST MINT/BURN should return same amount
@@ -609,21 +621,21 @@ describe("GUniPool", function () {
           await token1.transfer(await user2.getAddress(), "100000000000");
           await token0
             .connect(user2)
-            .approve(gUniPoolStatic.address, "1000000000000000");
+            .approve(gUniPool.address, "1000000000000000");
           await token1
             .connect(user2)
-            .approve(gUniPoolStatic.address, "1000000000000000");
+            .approve(gUniPool.address, "1000000000000000");
           const preBalance0 = await token0.balanceOf(await user2.getAddress());
           const preBalance1 = await token1.balanceOf(await user2.getAddress());
-          const preBalanceG = await gUniPoolStatic.balanceOf(
+          const preBalanceG = await gUniPool.balanceOf(
             await user2.getAddress()
           );
-          const mintAmounts = await gUniPoolStatic.getMintAmounts(
+          const mintAmounts = await gUniPool.getMintAmounts(
             "90000000002",
             "90000000002"
           );
 
-          await gUniPoolStatic
+          await gUniPool
             .connect(user2)
             .mint(mintAmounts.mintAmount, await user2.getAddress());
           const intermediateBalance0 = await token0.balanceOf(
@@ -632,7 +644,7 @@ describe("GUniPool", function () {
           const intermediateBalance1 = await token1.balanceOf(
             await user2.getAddress()
           );
-          const intermediateBalanceG = await gUniPoolStatic.balanceOf(
+          const intermediateBalanceG = await gUniPool.balanceOf(
             await user2.getAddress()
           );
 
@@ -645,10 +657,10 @@ describe("GUniPool", function () {
           expect(intermediateBalanceG.sub(preBalanceG)).to.equal(
             mintAmounts.mintAmount
           );
-          await gUniPoolStatic
+          await gUniPool
             .connect(user2)
             .burn(
-              await gUniPoolStatic.balanceOf(await user2.getAddress()),
+              await gUniPool.balanceOf(await user2.getAddress()),
               await user2.getAddress()
             );
           const postBalance0 = await token0.balanceOf(await user2.getAddress());
@@ -667,27 +679,27 @@ describe("GUniPool", function () {
             ethers.constants.Zero
           );
 
-          await gUniPoolStatic
+          await gUniPool
             .connect(user1)
             .burn(
-              await gUniPoolStatic.balanceOf(await user1.getAddress()),
+              await gUniPool.balanceOf(await user1.getAddress()),
               await user1.getAddress()
             );
 
-          contractBalance0 = await token0.balanceOf(gUniPoolStatic.address);
-          contractBalance1 = await token1.balanceOf(gUniPoolStatic.address);
+          contractBalance0 = await token0.balanceOf(gUniPool.address);
+          contractBalance1 = await token1.balanceOf(gUniPool.address);
           // console.log(contractBalance0.toString(), contractBalance1.toString());
 
-          await gUniPoolStatic
+          await gUniPool
             .connect(user0)
-            .burn(await gUniPoolStatic.totalSupply(), await user0.getAddress());
+            .burn(await gUniPool.totalSupply(), await user0.getAddress());
 
-          await gUniPoolStatic
+          await gUniPool
             .connect(gelato)
             .withdrawGelatoBalance(1, token0.address);
 
-          contractBalance0 = await token0.balanceOf(gUniPoolStatic.address);
-          contractBalance1 = await token1.balanceOf(gUniPoolStatic.address);
+          contractBalance0 = await token0.balanceOf(gUniPool.address);
+          contractBalance1 = await token1.balanceOf(gUniPool.address);
           // console.log(contractBalance0.toString(), contractBalance1.toString());
 
           expect(contractBalance0).to.equal(0);
@@ -705,11 +717,11 @@ describe("GUniPool", function () {
             sqrtPriceX96.div(ethers.BigNumber.from("25"))
           );
           await expect(
-            gUniPoolStatic
+            gUniPool
               .connect(gelato)
               .rebalance(slippagePrice, 1000, true, 2, token0.address)
           ).to.be.reverted;
-          const tx = await gUniPoolStatic
+          const tx = await gUniPool
             .connect(user0)
             .updateGelatoParams(
               "9000",
@@ -724,15 +736,15 @@ describe("GUniPool", function () {
             const executionTime = block.timestamp + 300;
             await network.provider.send("evm_mine", [executionTime]);
           }
-          await gUniPoolStatic.connect(user0).initializeManagerFee(5000);
-          await gUniPoolStatic
+          await gUniPool.connect(user0).initializeManagerFee(5000);
+          await gUniPool
             .connect(gelato)
             .rebalance(slippagePrice, 5000, true, 2, token0.address);
 
           const treasuryBal0 = await token0.balanceOf(await user1.getAddress());
           const treasuryBal1 = await token1.balanceOf(await user1.getAddress());
 
-          await gUniPoolStatic
+          await gUniPool
             .connect(gelato)
             .withdrawManagerBalance(2, token0.address);
 
@@ -746,8 +758,8 @@ describe("GUniPool", function () {
           expect(treasuryBalEnd0).to.be.gt(treasuryBal0);
           expect(treasuryBalEnd1).to.be.gt(treasuryBal1);
 
-          const bal0End = await gUniPoolStatic.managerBalance0();
-          const bal1End = await gUniPoolStatic.managerBalance1();
+          const bal0End = await gUniPool.managerBalance0();
+          const bal1End = await gUniPool.managerBalance1();
 
           expect(bal0End).to.equal(ethers.constants.Zero);
           expect(bal1End).to.equal(ethers.constants.Zero);
@@ -755,7 +767,7 @@ describe("GUniPool", function () {
           const gelatoBal0 = await token0.balanceOf(await gelato.getAddress());
           const gelatoBal1 = await token1.balanceOf(await gelato.getAddress());
 
-          await gUniPoolStatic
+          await gUniPool
             .connect(gelato)
             .withdrawGelatoBalance(1, token0.address);
 
@@ -769,29 +781,29 @@ describe("GUniPool", function () {
           expect(gelatoBalEnd0).to.be.gt(gelatoBal0);
           expect(gelatoBalEnd1).to.be.gt(gelatoBal1);
 
-          const gelatoLeft0 = await gUniPoolStatic.gelatoBalance0();
-          const gelatoLeft1 = await gUniPoolStatic.gelatoBalance1();
+          const gelatoLeft0 = await gUniPool.gelatoBalance0();
+          const gelatoLeft1 = await gUniPool.gelatoBalance1();
 
           expect(gelatoLeft0).to.equal(ethers.constants.Zero);
           expect(gelatoLeft1).to.equal(ethers.constants.Zero);
 
-          await expect(gUniPoolStatic.connect(user0).initializeManagerFee(2000))
-            .to.be.reverted;
-          const treasuryStart = await gUniPoolStatic.managerTreasury();
-          expect(treasuryStart).to.equal(await user1.getAddress());
-          await expect(gUniPoolStatic.connect(gelato).renounceOwnership()).to.be
+          await expect(gUniPool.connect(user0).initializeManagerFee(2000)).to.be
             .reverted;
-          const manager = await gUniPoolStatic.manager();
+          const treasuryStart = await gUniPool.managerTreasury();
+          expect(treasuryStart).to.equal(await user1.getAddress());
+          await expect(gUniPool.connect(gelato).renounceOwnership()).to.be
+            .reverted;
+          const manager = await gUniPool.manager();
           expect(manager).to.equal(await user0.getAddress());
-          await gUniPoolStatic
+          await gUniPool
             .connect(user0)
             .transferOwnership(await user1.getAddress());
-          const manager2 = await gUniPoolStatic.manager();
+          const manager2 = await gUniPool.manager();
           expect(manager2).to.equal(await user1.getAddress());
-          await gUniPoolStatic.connect(user1).renounceOwnership();
-          const treasuryEnd = await gUniPoolStatic.managerTreasury();
+          await gUniPool.connect(user1).renounceOwnership();
+          const treasuryEnd = await gUniPool.managerTreasury();
           expect(treasuryEnd).to.equal(ethers.constants.AddressZero);
-          const lastManager = await gUniPoolStatic.manager();
+          const lastManager = await gUniPool.manager();
           expect(lastManager).to.equal(ethers.constants.AddressZero);
         });
       });

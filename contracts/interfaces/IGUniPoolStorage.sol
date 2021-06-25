@@ -6,7 +6,7 @@ interface IGUniPoolStorage {
         string memory _name,
         string memory _symbol,
         address _pool,
-        uint24 _managerFeeBPS,
+        uint16 _managerFeeBPS,
         int24 _lowerTick,
         int24 _upperTick,
         address _manager_
