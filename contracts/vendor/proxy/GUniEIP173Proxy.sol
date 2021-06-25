@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity ^0.7.0;
+pragma solidity 0.8.4;
 
 import "./Proxy.sol";
+import {IGUniFactoryStorage} from "../../interfaces/IGUniFactoryStorage.sol";
 
 interface ERC165 {
     function supportsInterface(bytes4 id) external view returns (bool);
 }
 
 ///@notice Proxy implementing EIP173 for ownership management
-contract EIP173Proxy is Proxy {
+contract GUniEIP173Proxy is Proxy {
     // ////////////////////////// EVENTS ///////////////////////////////////////////////////////////////////////
 
     event ProxyAdminTransferred(
@@ -17,14 +18,11 @@ contract EIP173Proxy is Proxy {
     );
 
     // /////////////////////// CONSTRUCTOR //////////////////////////////////////////////////////////////////////
-
-    constructor(
-        address implementationAddress,
-        address adminAddress,
-        bytes memory data
-    ) payable {
-        _setImplementation(implementationAddress, data);
-        _setProxyAdmin(adminAddress);
+    constructor() payable {
+        (address admin, address implementation) =
+            IGUniFactoryStorage(msg.sender).getDeployProps();
+        _setImplementation(implementation, "");
+        _setProxyAdmin(admin);
     }
 
     // ///////////////////// EXTERNAL ///////////////////////////////////////////////////////////////////////////
