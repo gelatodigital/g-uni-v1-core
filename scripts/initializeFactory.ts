@@ -5,14 +5,19 @@ import { getAddresses } from "../src/addresses";
 const addresses = getAddresses(network.name);
 
 const op = async (signer: SignerWithAddress) => {
-  const gelatoUniV3Pool = await ethers.getContractAt(
-    "GUniPool",
-    addresses.GUNIWethInst1,
+  const gUniFactory = await ethers.getContractAt(
+    "GUniFactory",
+    addresses.GUniFactory,
     signer
   );
-  await gelatoUniV3Pool.initialize(-32160, -22980, await signer.getAddress(), {
-    gasLimit: 1000000,
-  });
+
+  await gUniFactory.initialize(
+    addresses.GUniImplementation,
+    await signer.getAddress(),
+    {
+      gasLimit: 300000,
+    }
+  );
 };
 
 (async () => {
