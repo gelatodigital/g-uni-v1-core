@@ -34,8 +34,8 @@ export const getAddresses = (network: string): Addresses => {
         DAI: "0xaD6D458402F60fD3Bd25163575031ACDce07538D",
         USDC: "0x07865c6e87b9f70255377e024ace6630c1eaa37f",
         UniswapV3Factory: "0x273Edaa13C845F605b5886Dd66C89AB497A6B17b",
-        GUniFactory: "",
-        GUniImplementation: "",
+        GUniFactory: "0xDC012b00bc522E7a09D00Ad08D001a17D0A23493",
+        GUniImplementation: "0x04C198C8bAfc84AbB887fb1Fed47551a9EE23845",
       };
     default:
       throw new Error(`No addresses for Network: ${network}`);

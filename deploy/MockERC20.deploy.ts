@@ -9,7 +9,7 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     hre.network.name === "ropsten"
   ) {
     console.log(
-      `!! Deploying MockERC20 to mainnet/testnet. Hit ctrl + c to abort`
+      `!! Deploying MockERC20 to ${hre.network.name}. Hit ctrl + c to abort`
     );
     await new Promise((r) => setTimeout(r, 20000));
   }

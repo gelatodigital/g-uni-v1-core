@@ -9,7 +9,9 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     hre.network.name === "rinkeby" ||
     hre.network.name === "ropsten"
   ) {
-    console.log(`!! Deploying GUniPool to mainnet. Hit ctrl + c to abort`);
+    console.log(
+      `!! Deploying GUniPool to ${hre.network.name}. Hit ctrl + c to abort`
+    );
     await new Promise((r) => setTimeout(r, 20000));
   }
 

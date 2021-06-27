@@ -26,7 +26,10 @@ contract GUniFactoryStorage is
     address public immutable override deployer;
     address public immutable factory;
     address public poolImplementation;
+    /// @notice isPoolCreator maps any address that has deployed a G-UNI pool to true
     mapping(address => bool) public isPoolCreator;
+    /// @notice isVerifiedCreator maps any address to true that Gelato
+    /// has vetted as "trusted" G-UNI manager
     mapping(address => bool) public isVerifiedCreator;
     // APPPEND ADDITIONAL STATE VARS BELOW:
     // XXXXXXXX DO NOT MODIFY ORDERING XXXXXXXX
@@ -53,6 +56,7 @@ contract GUniFactoryStorage is
         _manager = _manager_;
     }
 
+    /// @notice used in deployment of GUniEIP173Proxy (see GUniEIP173Proxy.sol constructor)
     function getDeployProps()
         external
         view

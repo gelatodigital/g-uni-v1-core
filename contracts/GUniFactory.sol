@@ -19,6 +19,14 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
 
     constructor(address _factory) GUniFactoryStorage(_factory) {} // solhint-disable-line no-empty-blocks, max-line-length
 
+    /// @notice getPoolAddress gets the deterministic address of any G-UNI token
+    /// Functions similarly to UniswapV3Factory's getPool method with the addition of one
+    /// important `manager` parameter. This parameter allows for multiple G-UNI token instances
+    /// on the same UniswapV3 trading pair given that they were deployed by a different `manager`
+    /// @param manager the account who deployed and initially managed the pool
+    /// @param tokenA one of the tokens in the uniswap pair
+    /// @param tokenB other token in the uniswap pair
+    /// @param fee fee tier of the uniswap pair (500, 3000, 10000)
     function getPoolAddress(
         address manager,
         address tokenA,
@@ -50,6 +58,16 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
             );
     }
 
+    /// @notice createPool creates a new instance of a G-UNI token on a specified
+    /// UniswapV3 pool. The msg.sender is the initial manager of the pool and will
+    /// forever be associated with the deterministic address of this G-UNI pool.
+    /// @param tokenA one of the tokens in the uniswap pair
+    /// @param tokenB the other token in the uniswap pair
+    /// @param uniFee fee tier of the unsiwap pair
+    /// @param managerFee proportion of earned fees that go to pool manager in Basis Points
+    /// @param lowerTick initial lower bound of the Uniswap V3 position
+    /// @param upperTick initial upper bound of the Uniswap V3 position
+    /// @return pool the (deterministic) address of the newly created G-UNI pool
     // solhint-disable-next-line function-max-lines
     function createPool(
         address tokenA,
@@ -139,27 +157,41 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
         }
     }
 
+    /// @notice poolProxyAdmin gets the current address who controls the underlying implementation
+    /// of a G-UNI pool. For most all pools either this contract address or the zero address will
+    /// be the proxyAdmin. If the admin is the zero address the pool's implementation is naturally
+    /// no longer upgradable (no one owns the zero address).
+    /// @param pool address of the G-UNI pool
+    /// @return address that controls the G-UNI implementation (has power to upgrade it)
     function poolProxyAdmin(address pool) public view returns (address) {
         return IEIP173Proxy(pool).proxyAdmin();
     }
 
+    /// @notice isPoolImmutable checks if a certain G-UNI pool is "immutable" i.e.
+    /// that the proxyAdmin is the zero address and thus the underlying implementation
+    /// cannot be upgraded. Immutable pools are more trustless.
+    /// @param pool address of the G-UNI pool
+    /// @return bool signaling if pool is immutable (true) or not (false)
     function isPoolImmutable(address pool) external view returns (bool) {
         return address(0) == poolProxyAdmin(pool);
     }
 
+    /// @notice getTokenOrder helper method that sorts token addresses as Uniswap pools
+    /// would (lexigraphically ascending order of hex address)
+    /// @param tokenA one of the tokens in uniswap pair
+    /// @param tokenB other token in uniswap pair
+    /// @return token0 the "first" token in the uniswap pair
+    /// @return token1 the "second" token in the uniswap pair
     function getTokenOrder(address tokenA, address tokenB)
         public
         pure
         returns (address token0, address token1)
     {
-        require(tokenA != tokenB, "GUniFactory.createPool: same token");
+        require(tokenA != tokenB, "same token");
         (token0, token1) = tokenA < tokenB
             ? (tokenA, tokenB)
             : (tokenB, tokenA);
-        require(
-            token0 != address(0),
-            "GUniFactory.createPool: not address zero"
-        );
+        require(token0 != address(0), "no address zero");
     }
 
     function _getAddressFingerprint(address addr)
