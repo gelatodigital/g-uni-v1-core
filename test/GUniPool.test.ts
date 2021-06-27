@@ -185,7 +185,13 @@ describe("GUniPool", function () {
         await expect(
           gUniPoolStatic
             .connect(user1)
-            .rebalance(encodePriceSqrt("10", "1"), 5000, 10, token0.address)
+            .rebalance(
+              encodePriceSqrt("10", "1"),
+              1000,
+              true,
+              10,
+              token0.address
+            )
         ).to.be.reverted;
         await expect(
           gUniPoolStatic
@@ -200,7 +206,13 @@ describe("GUniPool", function () {
         await expect(
           gUniPoolStatic
             .connect(gelato)
-            .rebalance(encodePriceSqrt("10", "1"), 5000, 10, token0.address)
+            .rebalance(
+              encodePriceSqrt("10", "1"),
+              1000,
+              true,
+              10,
+              token0.address
+            )
         ).to.be.reverted;
         await expect(
           gUniPoolStatic
@@ -261,12 +273,32 @@ describe("GUniPool", function () {
         });
       });
 
-      describe("after lots of balanced trading", function () {
+      describe("after fees earned on trades", function () {
         beforeEach(async function () {
-          await swapTest.washTrade(uniswapPool.address, "500000", 100, 2);
-          await swapTest.washTrade(uniswapPool.address, "500000", 100, 2);
-          await swapTest.washTrade(uniswapPool.address, "500000", 100, 2);
-          await swapTest.washTrade(uniswapPool.address, "500000", 100, 2);
+          await swapTest.washTrade(
+            uniswapPool.address,
+            "50000000000000",
+            100,
+            2
+          );
+          await swapTest.washTrade(
+            uniswapPool.address,
+            "50000000000000",
+            100,
+            3
+          );
+          await swapTest.washTrade(
+            uniswapPool.address,
+            "50000000000000",
+            100,
+            3
+          );
+          await swapTest.washTrade(
+            uniswapPool.address,
+            "50000000000000",
+            100,
+            3
+          );
         });
 
         describe("reinvest fees", function () {
@@ -281,7 +313,13 @@ describe("GUniPool", function () {
             await expect(
               gUniPoolStatic
                 .connect(gelato)
-                .rebalance(encodePriceSqrt("1", "1"), 6000, 10, token0.address)
+                .rebalance(
+                  encodePriceSqrt("1", "1"),
+                  5000,
+                  true,
+                  10,
+                  token0.address
+                )
             ).to.be.reverted;
 
             const tx = await gUniPoolStatic.updateGelatoParams(
@@ -297,9 +335,14 @@ describe("GUniPool", function () {
               await network.provider.send("evm_mine", [executionTime]);
             }
 
+            const { sqrtPriceX96 } = await uniswapPool.slot0();
+            const slippagePrice = sqrtPriceX96.sub(
+              sqrtPriceX96.div(ethers.BigNumber.from("25"))
+            );
+
             await gUniPoolStatic
               .connect(gelato)
-              .rebalance(encodePriceSqrt("1", "1.1"), 5200, 5, token1.address);
+              .rebalance(slippagePrice, 5000, true, 5, token1.address);
 
             const gelatoBalanceAfter = await token1.balanceOf(
               await gelato.getAddress()
@@ -322,17 +365,6 @@ describe("GUniPool", function () {
               position(gUniPoolStatic.address, -887220, 887220)
             );
 
-            await expect(
-              gUniPoolStatic
-                .connect(gelato)
-                .rebalance(
-                  encodePriceSqrt("10000", "1"),
-                  5000,
-                  100,
-                  token0.address
-                )
-            ).to.be.reverted;
-
             const tx = await gUniPoolStatic
               .connect(user0)
               .updateGelatoParams(
@@ -349,6 +381,10 @@ describe("GUniPool", function () {
               100,
               2
             );
+            await token1.transfer(
+              gUniPoolStatic.address,
+              ethers.utils.parseEther("1")
+            );
             if (network.provider && user0.provider && tx.blockHash) {
               const block = await user0.provider.getBlock(tx.blockHash);
               const executionTime = block.timestamp + 300;
@@ -358,14 +394,13 @@ describe("GUniPool", function () {
             const upperTickBefore = await gUniPoolStatic.upperTick();
             expect(lowerTickBefore).to.equal(-887220);
             expect(upperTickBefore).to.equal(887220);
+            const { sqrtPriceX96 } = await uniswapPool.slot0();
+            const slippagePrice = sqrtPriceX96.add(
+              sqrtPriceX96.div(ethers.BigNumber.from("25"))
+            );
             await gUniPoolStatic
               .connect(user0)
-              .executiveRebalance(
-                -443580,
-                443580,
-                encodePriceSqrt("1.1", "1"),
-                4000
-              );
+              .executiveRebalance(-443580, 443580, slippagePrice, 5000, false);
 
             const lowerTickAfter = await gUniPoolStatic.lowerTick();
             const upperTickAfter = await gUniPoolStatic.upperTick();
@@ -506,7 +541,7 @@ describe("GUniPool", function () {
           await expect(
             gUniPoolStatic
               .connect(gelato)
-              .rebalance(slippagePrice, 5000, 10, token0.address)
+              .rebalance(slippagePrice, 1000, true, 10, token0.address)
           ).to.be.reverted;
 
           const tx = await gUniPoolStatic
@@ -525,7 +560,7 @@ describe("GUniPool", function () {
           }
           await gUniPoolStatic
             .connect(gelato)
-            .rebalance(slippagePrice, 3000, 2, token0.address);
+            .rebalance(0, 0, true, 2, token0.address);
 
           let contractBalance0 = await token0.balanceOf(gUniPoolStatic.address);
           let contractBalance1 = await token1.balanceOf(gUniPoolStatic.address);
@@ -564,7 +599,7 @@ describe("GUniPool", function () {
           const slippagePrice2 = p2.sub(p2.div(ethers.BigNumber.from("50")));
           await gUniPoolStatic
             .connect(gelato)
-            .rebalance(slippagePrice2, 9000, 1, token0.address);
+            .rebalance(slippagePrice2, 5000, true, 1, token0.address);
           contractBalance0 = await token0.balanceOf(gUniPoolStatic.address);
           contractBalance1 = await token1.balanceOf(gUniPoolStatic.address);
           // console.log(contractBalance0.toString(), contractBalance1.toString());
@@ -672,7 +707,7 @@ describe("GUniPool", function () {
           await expect(
             gUniPoolStatic
               .connect(gelato)
-              .rebalance(slippagePrice, 5000, 2, token0.address)
+              .rebalance(slippagePrice, 1000, true, 2, token0.address)
           ).to.be.reverted;
           const tx = await gUniPoolStatic
             .connect(user0)
@@ -692,7 +727,7 @@ describe("GUniPool", function () {
           await gUniPoolStatic.connect(user0).initializeManagerFee(5000);
           await gUniPoolStatic
             .connect(gelato)
-            .rebalance(slippagePrice, 5000, 2, token0.address);
+            .rebalance(slippagePrice, 5000, true, 2, token0.address);
 
           const treasuryBal0 = await token0.balanceOf(await user1.getAddress());
           const treasuryBal1 = await token1.balanceOf(await user1.getAddress());
