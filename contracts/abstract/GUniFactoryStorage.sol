@@ -26,7 +26,7 @@ contract GUniFactoryStorage is
     address public immutable factory;
     address public poolImplementation;
 
-    /// @notice poolDeployer maps any address that 
+    /// @notice poolDeployer maps any address that
     // has deployed a G-UNI pool to the deployed instance
     mapping(address => address) public poolDeployer;
     // APPPEND ADDITIONAL STATE VARS BELOW:
