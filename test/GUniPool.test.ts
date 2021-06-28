@@ -8,7 +8,7 @@ import {
   SwapTest,
   GUniPool,
   GUniFactory,
-  IEIP173Proxy,
+  EIP173Proxy,
 } from "../typechain";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signer-with-address";
 
@@ -419,7 +419,7 @@ describe("GUniPool", function () {
             const slippagePrice = sqrtPriceX96.add(
               sqrtPriceX96.div(ethers.BigNumber.from("25"))
             );
-            
+
             await gUniPool
               .connect(user0)
               .executiveRebalance(-443580, 443580, slippagePrice, 5000, false);
@@ -867,9 +867,9 @@ describe("GUniPool", function () {
           await expect(gUniFactory.upgradePools([gUniPool.address])).to.be
             .reverted;
           const poolProxy = (await ethers.getContractAt(
-            "IEIP173Proxy",
+            "EIP173Proxy",
             gUniPool.address
-          )) as IEIP173Proxy;
+          )) as EIP173Proxy;
           await poolProxy.connect(user0).upgradeTo(implementationAddress);
           const supply2 = await gUniPool.totalSupply();
           expect(supply1).to.equal(supply2);
