@@ -63,7 +63,7 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
     /// forever be associated with the deterministic address of this G-UNI pool.
     /// @param tokenA one of the tokens in the uniswap pair
     /// @param tokenB the other token in the uniswap pair
-    /// @param uniFee fee tier of the unsiwap pair
+    /// @param uniFee fee tier of the uniswap pair
     /// @param managerFee proportion of earned fees that go to pool manager in Basis Points
     /// @param lowerTick initial lower bound of the Uniswap V3 position
     /// @param upperTick initial upper bound of the Uniswap V3 position
@@ -114,6 +114,8 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
         address uniPool =
             IUniswapV3Factory(factory).getPool(token0, token1, uniFee);
 
+        require(uniPool != address(0), "uniswap pool does not exist");
+
         IGUniPoolStorage(pool).initialize(
             name,
             "G-UNI",
@@ -125,7 +127,7 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
         );
 
         delete _constructorParams;
-        isPoolCreator[msg.sender] = true;
+        poolDeployer[msg.sender] = pool;
         emit PoolCreated(uniPool, msg.sender, pool);
     }
 
