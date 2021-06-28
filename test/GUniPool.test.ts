@@ -835,17 +835,6 @@ describe("GUniPool", function () {
               .connect(gelato)
               .setPoolImplementation(ethers.constants.AddressZero)
           ).to.be.reverted;
-          await expect(
-            gUniFactory
-              .connect(gelato)
-              .verifyPoolCreator(ethers.constants.AddressZero)
-          ).to.be.reverted;
-          await expect(
-            gUniFactory
-              .connect(gelato)
-              .unverifyPoolCreator(ethers.constants.AddressZero)
-          ).to.be.reverted;
-
           const implementationBefore = await gUniFactory.poolImplementation();
           expect(implementationBefore).to.equal(implementationAddress);
           await gUniFactory.setPoolImplementation(ethers.constants.AddressZero);
@@ -878,24 +867,6 @@ describe("GUniPool", function () {
             gUniPool.address
           );
           expect(isImmutable).to.be.true;
-          const isPoolCreator = await gUniFactory.isPoolCreator(
-            await user0.getAddress()
-          );
-          expect(isPoolCreator).to.be.true;
-          const isNotVerified = await gUniFactory.isVerifiedCreator(
-            await user0.getAddress()
-          );
-          expect(isNotVerified).to.be.false;
-          await gUniFactory.verifyPoolCreator(await user0.getAddress());
-          const isVerified = await gUniFactory.isVerifiedCreator(
-            await user0.getAddress()
-          );
-          expect(isVerified).to.be.true;
-          await gUniFactory.unverifyPoolCreator(await user0.getAddress());
-          const isNotVerified2 = await gUniFactory.isVerifiedCreator(
-            await user0.getAddress()
-          );
-          expect(isNotVerified2).to.be.false;
           await gUniFactory.transferOwnership(await user1.getAddress());
           const manager2 = await gUniFactory.manager();
           expect(manager2).to.equal(await user1.getAddress());
