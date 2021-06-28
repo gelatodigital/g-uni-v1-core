@@ -117,6 +117,7 @@ contract GUniPool is
             );
         } else {
             // if supply is 0 mintAmount == liquidity to deposit
+            require(mintAmount <= type(uint128).max);
             (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(
                 sqrtRatioX96,
                 lowerTick.getSqrtRatioAtTick(),
@@ -228,13 +229,15 @@ contract GUniPool is
     /// any leftover will be unused and sit idle until the next rebalance.
     /// @param newLowerTick The new lower bound of the position's range
     /// @param newUpperTick The new upper bound of the position's range
-    /// @param swapThresholdPrice slippage parameter on the swap as a min or max sqrtPriceX96
-    /// @param swapAmountBPS amount of leftover token to swap in Basis Points. Pass 0 for no swap.
+    /// @param swapThresholdPrice slippage parameter on the swap as a max or min sqrtPriceX96
+    /// @param swapAmountBPS amount of token to swap as proportion of total. Pass 0 to ignore swap.
+    /// @param zeroForOne Which token to input into the swap (true = token0, false = token1)
     function executiveRebalance(
         int24 newLowerTick,
         int24 newUpperTick,
         uint160 swapThresholdPrice,
-        uint256 swapAmountBPS
+        uint256 swapAmountBPS,
+        bool zeroForOne
     ) external onlyManager {
         (uint128 _liquidity, , , , ) = pool.positions(_getPositionID());
         (uint256 feesEarned0, uint256 feesEarned1) =
@@ -260,7 +263,7 @@ contract GUniPool is
             reinvest1,
             swapThresholdPrice,
             swapAmountBPS,
-            false
+            zeroForOne
         );
 
         emit Rebalance(newLowerTick, newUpperTick);
@@ -274,10 +277,20 @@ contract GUniPool is
     function rebalance(
         uint160 swapThresholdPrice,
         uint256 swapAmountBPS,
+        bool zeroForOne,
         uint256 feeAmount,
         address paymentToken
     ) external gelatofy(feeAmount, paymentToken) {
-        _rebalance(swapThresholdPrice, swapAmountBPS, feeAmount, paymentToken);
+        if (swapAmountBPS > 0) {
+            _checkSlippage(swapThresholdPrice, zeroForOne);
+        }
+        _rebalance(
+            swapThresholdPrice,
+            swapAmountBPS,
+            zeroForOne,
+            feeAmount,
+            paymentToken
+        );
 
         emit Rebalance(lowerTick, upperTick);
     }
@@ -463,6 +476,7 @@ contract GUniPool is
     function _rebalance(
         uint160 swapThresholdPrice,
         uint256 swapAmountBPS,
+        bool zeroForOne,
         uint256 feeAmount,
         address paymentToken
     ) private {
@@ -528,7 +542,7 @@ contract GUniPool is
             reinvest1,
             swapThresholdPrice,
             swapAmountBPS,
-            true
+            zeroForOne
         );
     }
 
@@ -600,7 +614,7 @@ contract GUniPool is
         uint256 amount1,
         uint160 swapThresholdPrice,
         uint256 swapAmountBPS,
-        bool checkSlippage
+        bool zeroForOne
     ) private {
         (uint160 sqrtRatioX96, , , , , , ) = pool.slot0();
         // First, deposit as much as we can
@@ -625,17 +639,9 @@ contract GUniPool is
             amount0 -= amountDeposited0;
             amount1 -= amountDeposited1;
         }
-
-        if ((amount0 > 0 || amount1 > 0) && swapAmountBPS > 0) {
-            // We need to swap the leftover so were balanced, then deposit it
-            bool zeroForOne = amount0 > amount1;
-            if (checkSlippage) {
-                _checkSlippage(swapThresholdPrice, zeroForOne);
-            }
-            int256 swapAmount =
-                int256(
-                    ((zeroForOne ? amount0 : amount1) * swapAmountBPS) / 10000
-                );
+        int256 swapAmount =
+            int256(((zeroForOne ? amount0 : amount1) * swapAmountBPS) / 10000);
+        if (swapAmount > 0) {
             _swapAndDeposit(
                 lowerTick_,
                 upperTick_,
