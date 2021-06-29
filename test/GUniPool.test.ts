@@ -120,6 +120,7 @@ describe("GUniPool", function () {
 
     await gUniFactory.initialize(
       implementationAddress,
+      await user0.getAddress(),
       await user0.getAddress()
     );
 
@@ -129,12 +130,18 @@ describe("GUniPool", function () {
       3000,
       0,
       -887220,
-      887220
+      887220,
+      "TEST NAME"
     );
 
     const deployers = await gUniFactory.getDeployers();
     const deployer = deployers[0];
+    const gelatoDeployer = await gUniFactory.gelatoDeployer();
+    expect(deployer).to.equal(gelatoDeployer);
     const pools = await gUniFactory.getPools(deployer);
+    const gelatoPools = await gUniFactory.getGelatoPools();
+    expect(pools[0]).to.equal(gelatoPools[0]);
+    expect(pools.length).to.equal(gelatoPools.length);
 
     gUniPool = (await ethers.getContractAt("GUniPool", pools[0])) as GUniPool;
   });
@@ -197,9 +204,7 @@ describe("GUniPool", function () {
         const name = await gUniPool.name();
         expect(symbol).to.equal("G-UNI");
         expect(decimals).to.equal(18);
-        expect(name.substring(0, name.length - 6)).to.equal(
-          "Gelato Uniswap V3 TOKEN/TOKEN LP 0x"
-        );
+        expect(name).to.equal("Gelato Uniswap TOKEN/TOKEN LP TEST NAME");
       });
     });
 
@@ -827,6 +832,12 @@ describe("GUniPool", function () {
               .connect(gelato)
               .setPoolImplementation(ethers.constants.AddressZero)
           ).to.be.reverted;
+          await expect(
+            gUniFactory
+              .connect(gelato)
+              .setGelatoDeployer(ethers.constants.AddressZero)
+          ).to.be.reverted;
+
           const implementationBefore = await gUniFactory.poolImplementation();
           expect(implementationBefore).to.equal(implementationAddress);
           await gUniFactory.setPoolImplementation(ethers.constants.AddressZero);
@@ -854,6 +865,11 @@ describe("GUniPool", function () {
             gUniPool.address
           );
           expect(isImmutable).to.be.true;
+          await gUniFactory.setGelatoDeployer(ethers.constants.AddressZero);
+          const newDeployer = await gUniFactory.gelatoDeployer();
+          expect(newDeployer).to.equal(ethers.constants.AddressZero);
+          const gelatoPools = await gUniFactory.getGelatoPools();
+          expect(gelatoPools.length).to.equal(0);
           await gUniFactory.transferOwnership(await user1.getAddress());
           const manager2 = await gUniFactory.manager();
           expect(manager2).to.equal(await user1.getAddress());
