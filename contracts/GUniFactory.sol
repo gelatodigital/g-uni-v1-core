@@ -32,7 +32,9 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
     /// @param managerFee proportion of earned fees that go to pool manager in Basis Points
     /// @param lowerTick initial lower bound of the Uniswap V3 position
     /// @param upperTick initial upper bound of the Uniswap V3 position
-    /// @return pool the (deterministic) address of the newly created G-UNI pool
+    /// @param tokenIdentifier string appended to token name to uniquely identify token instance
+    /// tokenIdentifier is just for convenience but not trustworthy (can easily be spoofed)
+    /// @return pool the address of the newly created G-UNI pool (proxy)
     // solhint-disable-next-line function-max-lines
     function createPool(
         address tokenA,
@@ -40,9 +42,10 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
         uint24 uniFee,
         uint16 managerFee,
         int24 lowerTick,
-        int24 upperTick
+        int24 upperTick,
+        string memory tokenIdentifier
     ) external override returns (address pool) {
-        (address token0, address token1) = getTokenOrder(tokenA, tokenB);
+        (address token0, address token1) = _getTokenOrder(tokenA, tokenB);
 
         pool = address(new EIP173Proxy(poolImplementation, address(this), ""));
 
@@ -61,8 +64,8 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
                 symbol0,
                 "/",
                 symbol1,
-                " LP 0x",
-                _getAddressFingerprint(msg.sender)
+                " LP ",
+                tokenIdentifier
             );
 
         address uniPool =
@@ -117,6 +120,60 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
         return address(0) == getProxyAdmin(pool);
     }
 
+    /// @notice getGelatoPools gets all the G-UNI pools deployed by Gelato's
+    /// default deployer address (since anyone can deploy and manage G-UNI pools)
+    /// @return list of Gelato managed G-UNI pool addresses
+    function getGelatoPools() external view returns (address[] memory) {
+        return getPools(gelatoDeployer);
+    }
+
+    /// @notice getDeployers fetches all addresses that have deployed a G-UNI pool
+    /// @return deployers the list of deployer addresses
+    function getDeployers() public view returns (address[] memory) {
+        uint256 length = numDeployers();
+        address[] memory deployers = new address[](length);
+        for (uint256 i = 0; i < length; i++) {
+            deployers[i] = _getDeployer(i);
+        }
+
+        return deployers;
+    }
+
+    /// @notice getPools fetches all the G-UNI pool addresses deployed by `deployer`
+    /// @param deployer address that has potentially deployed G-UNI pools (can return empty array)
+    /// @return pools the list of G-UNI pool addresses deployed by `deployer`
+    function getPools(address deployer) public view returns (address[] memory) {
+        uint256 length = numPools(deployer);
+        address[] memory pools = new address[](length);
+        for (uint256 i = 0; i < length; i++) {
+            pools[i] = _getPool(deployer, i);
+        }
+
+        return pools;
+    }
+
+    /// @notice numPools counts the total number of G-UNI pools in existence
+    /// @return result total number of G-UNI pools deployed
+    function numPools() public view returns (uint256 result) {
+        address[] memory deployers = getDeployers();
+        for (uint256 i = 0; i < deployers.length; i++) {
+            result += numPools(deployers[i]);
+        }
+    }
+
+    /// @notice numDeployers counts the total number of G-UNI pool deployer addresses
+    /// @return total number of G-UNI pool deployer addresses
+    function numDeployers() public view returns (uint256) {
+        return _deployers.length();
+    }
+
+    /// @notice numPools counts the total number of G-UNI pools deployed by `deployer`
+    /// @param deployer deployer address
+    /// @return total number of G-UNI pools deployed by `deployer`
+    function numPools(address deployer) public view returns (uint256) {
+        return _pools[deployer].length();
+    }
+
     /// @notice getProxyAdmin gets the current address who controls the underlying implementation
     /// of a G-UNI pool. For most all pools either this contract address or the zero address will
     /// be the proxyAdmin. If the admin is the zero address the pool's implementation is naturally
@@ -127,64 +184,20 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
         return IEIP173Proxy(pool).proxyAdmin();
     }
 
-    /// @notice getDeployers fetches all addresses that have deployed a G-UNI pool
-    /// @return deployers the list of deployer addresses
-    function getDeployers() external view returns (address[] memory) {
-        uint256 length = numDeployers();
-        address[] memory deployers = new address[](length);
-        for (uint256 i = 0; i < length; i++) {
-            deployers[i] = getDeployer(i);
-        }
-
-        return deployers;
-    }
-
-    /// @notice getDeployer fetches deployer addresses by index from the deployer EnumerableSet
-    /// @param index deployer's index in the EnumerableSet of G-UNI pool deployer addresses
-    /// @return address of a G-UNI pool deployer
-    function getDeployer(uint256 index) public view returns (address) {
+    function _getDeployer(uint256 index) internal view returns (address) {
         return _deployers.at(index);
     }
 
-    /// @notice getPools fetches all the G-UNI pool addresses deployed by `deployer`
-    /// @param deployer address that has potentially deployed G-UNI pools (can return empty array)
-    /// @return pools the list of G-UNI pool addresses deployed by `deployer`
-    function getPools(address deployer)
-        external
-        view
-        returns (address[] memory)
-    {
-        uint256 length = numPools(deployer);
-        address[] memory pools = new address[](length);
-        for (uint256 i = 0; i < length; i++) {
-            pools[i] = getPool(deployer, i);
-        }
-
-        return pools;
-    }
-
-    /// @notice getPool fetches an address in the EnumerableSet of pools deployed by `deployer`
-    /// @param deployer address that has deployed G-UNI pools
-    /// @param index index in deployer's EnumerableSet of deployed pool addresses
-    /// @return address of a G-UNI pool
-    function getPool(address deployer, uint256 index)
-        public
+    function _getPool(address deployer, uint256 index)
+        internal
         view
         returns (address)
     {
         return _pools[deployer].at(index);
     }
 
-    function numPools(address deployer) public view returns (uint256) {
-        return _pools[deployer].length();
-    }
-
-    function numDeployers() public view returns (uint256) {
-        return _deployers.length();
-    }
-
-    function getTokenOrder(address tokenA, address tokenB)
-        public
+    function _getTokenOrder(address tokenA, address tokenB)
+        internal
         pure
         returns (address token0, address token1)
     {
@@ -193,22 +206,6 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
             ? (tokenA, tokenB)
             : (tokenB, tokenA);
         require(token0 != address(0), "no address zero");
-    }
-
-    function _getAddressFingerprint(address addr)
-        internal
-        pure
-        returns (string memory)
-    {
-        bytes32 value = bytes32(uint256(uint160(addr)));
-        bytes memory alphabet = "0123456789abcdef";
-
-        bytes memory str = new bytes(6);
-        for (uint256 i = 0; i < 3; i++) {
-            str[i * 2] = alphabet[uint256(uint8(value[i + 12] >> 4))];
-            str[1 + i * 2] = alphabet[uint256(uint8(value[i + 12] & 0x0f))];
-        }
-        return string(str);
     }
 
     function _append(
