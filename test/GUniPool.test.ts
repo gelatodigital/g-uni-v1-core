@@ -820,9 +820,7 @@ describe("GUniPool", function () {
               .upgradePoolsAndCall([gUniPool.address], ["0x"])
           ).to.be.reverted;
           await expect(
-            gUniFactory
-              .connect(gelato)
-              .transferPools([gUniPool.address], ethers.constants.AddressZero)
+            gUniFactory.connect(gelato).makePoolsImmutable([gUniPool.address])
           ).to.be.reverted;
           await expect(
             gUniFactory
@@ -834,7 +832,6 @@ describe("GUniPool", function () {
           await gUniFactory.setPoolImplementation(ethers.constants.AddressZero);
           const implementationAfter = await gUniFactory.poolImplementation();
           expect(implementationAfter).to.equal(ethers.constants.AddressZero);
-          const supply1 = await gUniPool.totalSupply();
           await gUniFactory.upgradePools([gUniPool.address]);
           await expect(gUniPool.totalSupply()).to.be.reverted;
           const proxyAdmin = await gUniFactory.getProxyAdmin(gUniPool.address);
@@ -843,20 +840,16 @@ describe("GUniPool", function () {
             gUniPool.address
           );
           expect(isNotImmutable).to.be.false;
-          await gUniFactory.transferPools(
-            [gUniPool.address],
-            await user0.getAddress()
-          );
+          await gUniFactory.makePoolsImmutable([gUniPool.address]);
           await expect(gUniFactory.upgradePools([gUniPool.address])).to.be
             .reverted;
           const poolProxy = (await ethers.getContractAt(
             "EIP173Proxy",
             gUniPool.address
           )) as EIP173Proxy;
-          await poolProxy.connect(user0).upgradeTo(implementationAddress);
-          const supply2 = await gUniPool.totalSupply();
-          expect(supply1).to.equal(supply2);
-          await poolProxy.transferProxyAdmin(ethers.constants.AddressZero);
+          await expect(
+            poolProxy.connect(user0).upgradeTo(implementationAddress)
+          ).to.be.reverted;
           const isImmutable = await gUniFactory.isPoolImmutable(
             gUniPool.address
           );
