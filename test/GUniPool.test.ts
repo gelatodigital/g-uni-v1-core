@@ -132,17 +132,11 @@ describe("GUniPool", function () {
       887220
     );
 
-    const gUniPoolAddress = await gUniFactory.getPoolAddress(
-      await user0.getAddress(),
-      token0.address,
-      token1.address,
-      3000
-    );
+    const deployers = await gUniFactory.getDeployers();
+    const deployer = deployers[0];
+    const pools = await gUniFactory.getPools(deployer);
 
-    gUniPool = (await ethers.getContractAt(
-      "GUniPool",
-      gUniPoolAddress
-    )) as GUniPool;
+    gUniPool = (await ethers.getContractAt("GUniPool", pools[0])) as GUniPool;
   });
 
   describe("Before liquidity deposited", function () {
@@ -843,7 +837,7 @@ describe("GUniPool", function () {
           const supply1 = await gUniPool.totalSupply();
           await gUniFactory.upgradePools([gUniPool.address]);
           await expect(gUniPool.totalSupply()).to.be.reverted;
-          const proxyAdmin = await gUniFactory.poolProxyAdmin(gUniPool.address);
+          const proxyAdmin = await gUniFactory.getProxyAdmin(gUniPool.address);
           expect(proxyAdmin).to.equal(gUniFactory.address);
           const isNotImmutable = await gUniFactory.isPoolImmutable(
             gUniPool.address

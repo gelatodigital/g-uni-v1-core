@@ -1,34 +1,26 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.4;
 
-import {IGUniFactoryStorage} from "../interfaces/IGUniFactoryStorage.sol";
 import {OwnableUninitialized} from "./OwnableUninitialized.sol";
 import {
     Initializable
 } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import {
+    EnumerableSet
+} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 // solhint-disable-next-line max-states-count
 contract GUniFactoryStorage is
     OwnableUninitialized, /* XXXX DONT MODIFY ORDERING XXXX */
-    Initializable,
-    IGUniFactoryStorage
+    Initializable
     // APPEND ADDITIONAL BASE WITH STATE VARS BELOW:
     // XXXX DONT MODIFY ORDERING XXXX
 {
     // XXXXXXXX DO NOT MODIFY ORDERING XXXXXXXX
-    struct ConstructorParams {
-        address owner;
-        address implementation;
-    }
-
-    ConstructorParams internal _constructorParams;
-
     address public immutable factory;
     address public poolImplementation;
-
-    /// @notice poolDeployer maps any address that
-    // has deployed a G-UNI pool to the deployed instance
-    mapping(address => address) public poolDeployer;
+    EnumerableSet.AddressSet internal _deployers;
+    mapping(address => EnumerableSet.AddressSet) internal _pools;
     // APPPEND ADDITIONAL STATE VARS BELOW:
     // XXXXXXXX DO NOT MODIFY ORDERING XXXXXXXX
 
@@ -39,27 +31,16 @@ contract GUniFactoryStorage is
 
     event UpdateVerifyCreator(address poolCreator, bool isVerified);
 
-    constructor(address _uniswapFactory) {
-        factory = _uniswapFactory;
+    constructor(address _uniswapV3Factory) {
+        factory = _uniswapV3Factory;
     }
 
     function initialize(address _implementation, address _manager_)
         external
-        override
         initializer
     {
         poolImplementation = _implementation;
         _manager = _manager_;
-    }
-
-    /// @notice used in deployment of GUniEIP173Proxy (see GUniEIP173Proxy.sol constructor)
-    function getDeployProps()
-        external
-        view
-        override
-        returns (address, address)
-    {
-        return (_constructorParams.owner, _constructorParams.implementation);
     }
 
     function setPoolImplementation(address nextImplementation)

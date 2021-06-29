@@ -7,60 +7,25 @@ import {
 import {IGUniFactory} from "./interfaces/IGUniFactory.sol";
 import {IGUniPoolStorage} from "./interfaces/IGUniPoolStorage.sol";
 import {GUniFactoryStorage} from "./abstract/GUniFactoryStorage.sol";
-import {GUniEIP173Proxy} from "./vendor/proxy/GUniEIP173Proxy.sol";
+import {EIP173Proxy} from "./vendor/proxy/EIP173Proxy.sol";
 import {IEIP173Proxy} from "./interfaces/IEIP173Proxy.sol";
 import {
     IERC20Metadata
 } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {
+    EnumerableSet
+} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 contract GUniFactory is GUniFactoryStorage, IGUniFactory {
-    bytes32 public constant PROXY_BYTECODE_HASH =
-        keccak256(type(GUniEIP173Proxy).creationCode);
+    using EnumerableSet for EnumerableSet.AddressSet;
 
-    constructor(address _factory) GUniFactoryStorage(_factory) {} // solhint-disable-line no-empty-blocks, max-line-length
-
-    /// @notice getPoolAddress gets the deterministic address of any G-UNI token
-    /// Functions similarly to UniswapV3Factory's getPool method with the addition of one
-    /// important `manager` parameter. This parameter allows for multiple G-UNI token instances
-    /// on the same UniswapV3 trading pair given that they were deployed by a different `manager`
-    /// @param manager the account who deployed and initially managed the pool
-    /// @param tokenA one of the tokens in the uniswap pair
-    /// @param tokenB other token in the uniswap pair
-    /// @param fee fee tier of the uniswap pair (500, 3000, 10000)
-    function getPoolAddress(
-        address manager,
-        address tokenA,
-        address tokenB,
-        uint24 fee
-    ) external view returns (address) {
-        (address token0, address token1) = getTokenOrder(tokenA, tokenB);
-        return
-            address(
-                uint160(
-                    uint256(
-                        keccak256(
-                            abi.encodePacked(
-                                bytes1(0xff),
-                                address(this),
-                                keccak256(
-                                    abi.encodePacked(
-                                        manager,
-                                        token0,
-                                        token1,
-                                        fee
-                                    )
-                                ),
-                                PROXY_BYTECODE_HASH
-                            )
-                        )
-                    )
-                )
-            );
-    }
+    constructor(address _uniswapV3Factory)
+        GUniFactoryStorage(_uniswapV3Factory)
+    {} // solhint-disable-line no-empty-blocks
 
     /// @notice createPool creates a new instance of a G-UNI token on a specified
     /// UniswapV3 pool. The msg.sender is the initial manager of the pool and will
-    /// forever be associated with the deterministic address of this G-UNI pool.
+    /// forever be associated with the G-UNI pool as it's `deployer`
     /// @param tokenA one of the tokens in the uniswap pair
     /// @param tokenB the other token in the uniswap pair
     /// @param uniFee fee tier of the uniswap pair
@@ -79,18 +44,7 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
     ) external override returns (address pool) {
         (address token0, address token1) = getTokenOrder(tokenA, tokenB);
 
-        _constructorParams = ConstructorParams({
-            owner: address(this),
-            implementation: poolImplementation
-        });
-
-        pool = address(
-            new GUniEIP173Proxy{
-                salt: keccak256(
-                    abi.encodePacked(msg.sender, token0, token1, uniFee)
-                )
-            }()
-        );
+        pool = address(new EIP173Proxy(poolImplementation, address(this), ""));
 
         string memory symbol0 = "?";
         string memory symbol1 = "?";
@@ -125,9 +79,8 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
             upperTick,
             msg.sender
         );
-
-        delete _constructorParams;
-        poolDeployer[msg.sender] = pool;
+        _deployers.add(msg.sender);
+        _pools[msg.sender].add(pool);
         emit PoolCreated(uniPool, msg.sender, pool);
     }
 
@@ -159,31 +112,80 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
         }
     }
 
-    /// @notice poolProxyAdmin gets the current address who controls the underlying implementation
+    /// @notice isPoolImmutable checks if a certain G-UNI pool is "immutable" i.e. that the
+    /// proxyAdmin is the zero address and thus the underlying implementation cannot be upgraded
+    /// @param pool address of the G-UNI pool
+    /// @return bool signaling if pool is immutable (true) or not (false)
+    function isPoolImmutable(address pool) external view returns (bool) {
+        return address(0) == getProxyAdmin(pool);
+    }
+
+    /// @notice getProxyAdmin gets the current address who controls the underlying implementation
     /// of a G-UNI pool. For most all pools either this contract address or the zero address will
     /// be the proxyAdmin. If the admin is the zero address the pool's implementation is naturally
     /// no longer upgradable (no one owns the zero address).
     /// @param pool address of the G-UNI pool
     /// @return address that controls the G-UNI implementation (has power to upgrade it)
-    function poolProxyAdmin(address pool) public view returns (address) {
+    function getProxyAdmin(address pool) public view returns (address) {
         return IEIP173Proxy(pool).proxyAdmin();
     }
 
-    /// @notice isPoolImmutable checks if a certain G-UNI pool is "immutable" i.e.
-    /// that the proxyAdmin is the zero address and thus the underlying implementation
-    /// cannot be upgraded. Immutable pools are more trustless.
-    /// @param pool address of the G-UNI pool
-    /// @return bool signaling if pool is immutable (true) or not (false)
-    function isPoolImmutable(address pool) external view returns (bool) {
-        return address(0) == poolProxyAdmin(pool);
+    /// @notice getDeployers fetches all addresses that have deployed a G-UNI pool
+    /// @return deployers the list of deployer addresses
+    function getDeployers() external view returns (address[] memory) {
+        uint256 length = numDeployers();
+        address[] memory deployers = new address[](length);
+        for (uint256 i = 0; i < length; i++) {
+            deployers[i] = getDeployer(i);
+        }
+
+        return deployers;
     }
 
-    /// @notice getTokenOrder helper method that sorts token addresses as Uniswap pools
-    /// would (lexigraphically ascending order of hex address)
-    /// @param tokenA one of the tokens in uniswap pair
-    /// @param tokenB other token in uniswap pair
-    /// @return token0 the "first" token in the uniswap pair
-    /// @return token1 the "second" token in the uniswap pair
+    /// @notice getDeployer fetches deployer addresses by index from the deployer EnumerableSet
+    /// @param index deployer's index in the EnumerableSet of G-UNI pool deployer addresses
+    /// @return address of a G-UNI pool deployer
+    function getDeployer(uint256 index) public view returns (address) {
+        return _deployers.at(index);
+    }
+
+    /// @notice getPools fetches all the G-UNI pool addresses deployed by `deployer`
+    /// @param deployer address that has potentially deployed G-UNI pools (can return empty array)
+    /// @return pools the list of G-UNI pool addresses deployed by `deployer`
+    function getPools(address deployer)
+        external
+        view
+        returns (address[] memory)
+    {
+        uint256 length = numPools(deployer);
+        address[] memory pools = new address[](length);
+        for (uint256 i = 0; i < length; i++) {
+            pools[i] = getPool(deployer, i);
+        }
+
+        return pools;
+    }
+
+    /// @notice getPool fetches an address in the EnumerableSet of pools deployed by `deployer`
+    /// @param deployer address that has deployed G-UNI pools
+    /// @param index index in deployer's EnumerableSet of deployed pool addresses
+    /// @return address of a G-UNI pool
+    function getPool(address deployer, uint256 index)
+        public
+        view
+        returns (address)
+    {
+        return _pools[deployer].at(index);
+    }
+
+    function numPools(address deployer) public view returns (uint256) {
+        return _pools[deployer].length();
+    }
+
+    function numDeployers() public view returns (uint256) {
+        return _deployers.length();
+    }
+
     function getTokenOrder(address tokenA, address tokenB)
         public
         pure
