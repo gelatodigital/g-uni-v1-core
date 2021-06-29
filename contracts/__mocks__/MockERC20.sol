@@ -7,7 +7,7 @@ import {
 
 contract MockERC20 is ERC20Upgradeable {
     constructor() {
-        __ERC20_init("Gelato Uniswap V3 INST/ETH LP", "G-UNI");
+        __ERC20_init("", "TOKEN");
         _mint(msg.sender, 100000e18);
     }
 }

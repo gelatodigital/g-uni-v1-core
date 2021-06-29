@@ -9,7 +9,7 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     hre.network.name === "ropsten"
   ) {
     console.log(
-      `!! Deploying SwapTest to mainnet/testnet. Hit ctrl + c to abort`
+      `!! Deploying SwapTest to ${hre.network.name}. Hit ctrl + c to abort`
     );
     await new Promise((r) => setTimeout(r, 20000));
   }
