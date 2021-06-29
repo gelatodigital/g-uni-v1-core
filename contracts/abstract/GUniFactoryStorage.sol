@@ -17,6 +17,8 @@ contract GUniFactoryStorage is
     // XXXX DONT MODIFY ORDERING XXXX
 {
     // XXXXXXXX DO NOT MODIFY ORDERING XXXXXXXX
+    // solhint-disable-next-line const-name-snakecase
+    string public constant version = "1.0.0";
     address public immutable factory;
     address public poolImplementation;
     EnumerableSet.AddressSet internal _deployers;

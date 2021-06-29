@@ -27,6 +27,8 @@ abstract contract GUniPoolStorage is
     // XXXX DONT MODIFY ORDERING XXXX
 {
     // solhint-disable-next-line const-name-snakecase
+    string public constant version = "1.0.0";
+    // solhint-disable-next-line const-name-snakecase
     uint16 public constant gelatoFeeBPS = 100;
 
     // XXXXXXXX DO NOT MODIFY ORDERING XXXXXXXX
@@ -85,7 +87,7 @@ abstract contract GUniPoolStorage is
         int24 _upperTick,
         address _manager_
     ) external initializer {
-        require(_managerFeeBPS <= 10000 - gelatoFeeBPS, "manager BPS");
+        require(_managerFeeBPS <= 10000 - gelatoFeeBPS, "mBPS");
 
         // these variables are immutable after initialization
         pool = IUniswapV3Pool(_pool);
@@ -146,10 +148,10 @@ abstract contract GUniPoolStorage is
     /// but ONLY ONCE- after it is set to a non-zero value, managerFee can never be set again.
     /// @param _managerFeeBPS proportion of fees earned that are credited to manager in Basis Points
     function initializeManagerFee(uint16 _managerFeeBPS) external onlyManager {
-        require(managerFeeBPS == 0, "fee already initialized");
+        require(managerFeeBPS == 0, "fee");
         require(
             _managerFeeBPS > 0 && _managerFeeBPS <= 10000 - gelatoFeeBPS,
-            "manager BPS"
+            "mBPS"
         );
         managerFeeBPS = _managerFeeBPS;
     }

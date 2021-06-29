@@ -79,7 +79,7 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
             upperTick,
             msg.sender
         );
-        _deployers.add(msg.sender);
+        if (!_deployers.contains(msg.sender)) _deployers.add(msg.sender);
         _pools[msg.sender].add(pool);
         emit PoolCreated(uniPool, msg.sender, pool);
     }
@@ -103,12 +103,9 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
         }
     }
 
-    function transferPools(address[] memory pools, address newAdmin)
-        external
-        onlyManager
-    {
+    function makePoolsImmutable(address[] memory pools) external onlyManager {
         for (uint256 i = 0; i < pools.length; i++) {
-            IEIP173Proxy(pools[i]).transferProxyAdmin(newAdmin);
+            IEIP173Proxy(pools[i]).transferProxyAdmin(address(0));
         }
     }
 
