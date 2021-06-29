@@ -79,7 +79,7 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
             upperTick,
             msg.sender
         );
-        if (!_deployers.contains(msg.sender)) _deployers.add(msg.sender);
+        _deployers.add(msg.sender);
         _pools[msg.sender].add(pool);
         emit PoolCreated(uniPool, msg.sender, pool);
     }
