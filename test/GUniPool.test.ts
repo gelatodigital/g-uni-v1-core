@@ -204,7 +204,7 @@ describe("GUniPool", function () {
         const name = await gUniPool.name();
         expect(symbol).to.equal("G-UNI");
         expect(decimals).to.equal(18);
-        expect(name).to.equal("Gelato Uniswap V3 TOKEN/TOKEN LP TEST NAME");
+        expect(name).to.equal("Gelato Uniswap TOKEN/TOKEN LP TEST NAME");
       });
     });
 

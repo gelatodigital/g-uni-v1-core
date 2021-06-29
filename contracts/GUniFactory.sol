@@ -60,7 +60,7 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
 
         string memory name =
             _append(
-                "Gelato Uniswap V3 ",
+                "Gelato Uniswap ",
                 symbol0,
                 "/",
                 symbol1,
