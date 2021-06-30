@@ -14,7 +14,6 @@ interface IGUniFactory {
         uint24 uniFee,
         uint16 managerFee,
         int24 lowerTick,
-        int24 upperTick,
-        string memory tokenIdentifier
+        int24 upperTick
     ) external returns (address pool);
 }

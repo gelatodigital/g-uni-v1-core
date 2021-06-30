@@ -13,9 +13,10 @@ const op = async (signer: SignerWithAddress) => {
 
   await gUniFactory.initialize(
     addresses.GUniImplementation,
-    await signer.getAddress(),
+    addresses.GelatoAdmin,
+    addresses.GelatoAdmin,
     {
-      gasLimit: 300000,
+      gasLimit: 200000,
     }
   );
 };

@@ -22,20 +22,20 @@ export const getAddresses = (network: string): Addresses => {
         DAI: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
         USDC: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
         UniswapV3Factory: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
-        GUniFactory: "",
-        GUniImplementation: "",
+        GUniFactory: "0xEA1aFf9dbFfD1580F6b81A3ad3589E66652dB7D9",
+        GUniImplementation: "0x68C68FdB1d2dEAf58295008099E061b1749F94cF",
       };
     case "ropsten":
       return {
         Gelato: "0xCc4CcD69D31F9FfDBD3BFfDe49c6aA886DaB98d9",
         Swapper: "0x2E185412E2aF7DC9Ed28359Ea3193EBAd7E929C6",
-        GelatoAdmin: "0xD90fC89e89E3E5b75256b5aA617f887C583b29a2",
+        GelatoAdmin: "0x4B5BaD436CcA8df3bD39A095b84991fAc9A226F1",
         WETH: "0xc778417E063141139Fce010982780140Aa0cD5Ab",
         DAI: "0xaD6D458402F60fD3Bd25163575031ACDce07538D",
         USDC: "0x07865c6e87b9f70255377e024ace6630c1eaa37f",
         UniswapV3Factory: "0x273Edaa13C845F605b5886Dd66C89AB497A6B17b",
-        GUniFactory: "0xDC012b00bc522E7a09D00Ad08D001a17D0A23493",
-        GUniImplementation: "0x04C198C8bAfc84AbB887fb1Fed47551a9EE23845",
+        GUniFactory: "0xCe23a1A2B2b18A2fEC300D3DB48f543E9d66BC08",
+        GUniImplementation: "0xE6dbcC12016005f3a199BDFF8bee3e3b3C48Cfc5",
       };
     default:
       throw new Error(`No addresses for Network: ${network}`);
