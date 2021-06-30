@@ -32,8 +32,6 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
     /// @param managerFee proportion of earned fees that go to pool manager in Basis Points
     /// @param lowerTick initial lower bound of the Uniswap V3 position
     /// @param upperTick initial upper bound of the Uniswap V3 position
-    /// @param tokenIdentifier string appended to token name to uniquely identify token instance
-    /// tokenIdentifier is just for convenience but not trustworthy (can easily be spoofed)
     /// @return pool the address of the newly created G-UNI pool (proxy)
     // solhint-disable-next-line function-max-lines
     function createPool(
@@ -42,8 +40,7 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
         uint24 uniFee,
         uint16 managerFee,
         int24 lowerTick,
-        int24 upperTick,
-        string memory tokenIdentifier
+        int24 upperTick
     ) external override returns (address pool) {
         (address token0, address token1) = _getTokenOrder(tokenA, tokenB);
 
@@ -59,14 +56,7 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
         } catch {} // solhint-disable-line no-empty-blocks
 
         string memory name =
-            _append(
-                "Gelato Uniswap ",
-                symbol0,
-                "/",
-                symbol1,
-                " LP ",
-                tokenIdentifier
-            );
+            _append("Gelato Uniswap ", symbol0, "/", symbol1, " LP");
 
         address uniPool =
             IUniswapV3Factory(factory).getPool(token0, token1, uniFee);
@@ -213,9 +203,8 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
         string memory b,
         string memory c,
         string memory d,
-        string memory e,
-        string memory f
+        string memory e
     ) internal pure returns (string memory) {
-        return string(abi.encodePacked(a, b, c, d, e, f));
+        return string(abi.encodePacked(a, b, c, d, e));
     }
 }
