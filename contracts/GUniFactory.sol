@@ -46,17 +46,10 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
 
         pool = address(new EIP173Proxy(poolImplementation, address(this), ""));
 
-        string memory symbol0 = "?";
-        string memory symbol1 = "?";
-        try IERC20Metadata(token0).symbol() returns (string memory sym0) {
-            symbol0 = sym0;
+        string memory name = "Gelato Uniswap LP";
+        try this.getTokenName(token0, token1) returns (string memory result) {
+            name = result;
         } catch {} // solhint-disable-line no-empty-blocks
-        try IERC20Metadata(token1).symbol() returns (string memory sym1) {
-            symbol1 = sym1;
-        } catch {} // solhint-disable-line no-empty-blocks
-
-        string memory name =
-            _append("Gelato Uniswap ", symbol0, "/", symbol1, " LP");
 
         address uniPool =
             IUniswapV3Factory(factory).getPool(token0, token1, uniFee);
@@ -75,6 +68,17 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
         _deployers.add(msg.sender);
         _pools[msg.sender].add(pool);
         emit PoolCreated(uniPool, msg.sender, pool);
+    }
+
+    function getTokenName(address token0, address token1)
+        external
+        view
+        returns (string memory)
+    {
+        string memory symbol0 = IERC20Metadata(token0).symbol();
+        string memory symbol1 = IERC20Metadata(token1).symbol();
+
+        return _append("Gelato Uniswap ", symbol0, "/", symbol1, " LP");
     }
 
     function upgradePools(address[] memory pools) external onlyManager {
