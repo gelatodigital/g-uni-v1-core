@@ -110,7 +110,8 @@ If governance/admin wants to change bounds of the underlying position, or wants 
         int24 _newLowerTick,
         int24 _newUpperTick,
         uint160 _swapThresholdPrice,
-        uint256 _swapAmountBPS
+        uint256 _swapAmountBPS,
+        bool _zeroForOne
     ) external onlyOwner {
 ```
 
@@ -120,6 +121,7 @@ Arguments:
 - `_newUpperTick` the tick to use as position upper bound on reinvestment
 - `_swapThresholdPrice` a sqrtPriceX96 which is used as the slippage parameter in uniswap v3 swaps.
 - `_swapAmountBPS` amount to swap passed as basis points of current amount of leftover token held (e.g. "swap 50% of balance" would be a value of 5000)
+- `_zeroForOne` which token to input into the swap (true = token0, false = token1)
 
 # test
 
