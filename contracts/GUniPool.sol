@@ -176,36 +176,32 @@ contract GUniPool is
             FullMath.mulDiv(burnAmount, liquidity, totalSupply);
         require(_liquidityBurned_ < type(uint128).max);
         liquidityBurned = uint128(_liquidityBurned_);
-
-        uint256 preBalance0 = token0.balanceOf(address(this));
-        uint256 preBalance1 = token1.balanceOf(address(this));
-        uint256 leftoverShare0 =
-            FullMath.mulDiv(
-                burnAmount,
-                preBalance0 - managerBalance0 - gelatoBalance0,
-                totalSupply
-            );
-        uint256 leftoverShare1 =
-            FullMath.mulDiv(
-                burnAmount,
-                preBalance1 - managerBalance1 - gelatoBalance1,
-                totalSupply
-            );
-
-        _withdrawExact(
-            lowerTick,
-            upperTick,
-            burnAmount,
-            totalSupply,
-            liquidityBurned
-        );
-
+        (uint256 burn0, uint256 burn1, uint256 fee0, uint256 fee1) =
+            _withdraw(lowerTick, upperTick, liquidityBurned);
+        gelatoBalance0 += (fee0 * gelatoFeeBPS) / 10000;
+        gelatoBalance1 += (fee1 * gelatoFeeBPS) / 10000;
+        managerBalance0 += (fee0 * managerFeeBPS) / 10000;
+        managerBalance1 += (fee1 * managerFeeBPS) / 10000;
         amount0 =
-            (token0.balanceOf(address(this)) - preBalance0) +
-            leftoverShare0;
+            burn0 +
+            FullMath.mulDiv(
+                token0.balanceOf(address(this)) -
+                    burn0 -
+                    managerBalance0 -
+                    gelatoBalance0,
+                burnAmount,
+                totalSupply
+            );
         amount1 =
-            (token1.balanceOf(address(this)) - preBalance1) +
-            leftoverShare1;
+            burn1 +
+            FullMath.mulDiv(
+                token1.balanceOf(address(this)) -
+                    burn1 -
+                    managerBalance1 -
+                    gelatoBalance1,
+                burnAmount,
+                totalSupply
+            );
 
         if (amount0 > 0) {
             token0.safeTransfer(receiver, amount0);
@@ -240,8 +236,8 @@ contract GUniPool is
         bool zeroForOne
     ) external onlyManager {
         (uint128 _liquidity, , , , ) = pool.positions(_getPositionID());
-        (uint256 feesEarned0, uint256 feesEarned1) =
-            _withdrawAll(lowerTick, upperTick, _liquidity);
+        (, , uint256 feesEarned0, uint256 feesEarned1) =
+            _withdraw(lowerTick, upperTick, _liquidity);
 
         managerBalance0 += (feesEarned0 * managerFeeBPS) / 10000;
         managerBalance1 += (feesEarned1 * managerFeeBPS) / 10000;
@@ -482,8 +478,8 @@ contract GUniPool is
     ) private {
         (uint128 _liquidity, , , , ) = pool.positions(_getPositionID());
 
-        (uint256 feesEarned0, uint256 feesEarned1) =
-            _withdrawAll(lowerTick, upperTick, _liquidity);
+        (, , uint256 feesEarned0, uint256 feesEarned1) =
+            _withdraw(lowerTick, upperTick, _liquidity);
 
         uint256 reinvest0;
         uint256 reinvest1;
@@ -547,16 +543,23 @@ contract GUniPool is
     }
 
     // solhint-disable-next-line function-max-lines
-    function _withdrawAll(
+    function _withdraw(
         int24 lowerTick_,
         int24 upperTick_,
         uint128 liquidity
-    ) private returns (uint256 amountEarned0, uint256 amountEarned1) {
+    )
+        private
+        returns (
+            uint256 burn0,
+            uint256 burn1,
+            uint256 fee0,
+            uint256 fee1
+        )
+    {
         uint256 preBalance0 = token0.balanceOf(address(this));
         uint256 preBalance1 = token1.balanceOf(address(this));
 
-        (uint256 amount0Burned, uint256 amount1Burned) =
-            pool.burn(lowerTick_, upperTick_, liquidity);
+        (burn0, burn1) = pool.burn(lowerTick_, upperTick_, liquidity);
 
         pool.collect(
             address(this),
@@ -566,44 +569,8 @@ contract GUniPool is
             type(uint128).max
         );
 
-        amountEarned0 =
-            token0.balanceOf(address(this)) -
-            preBalance0 -
-            amount0Burned;
-        amountEarned1 =
-            token1.balanceOf(address(this)) -
-            preBalance1 -
-            amount1Burned;
-    }
-
-    function _withdrawExact(
-        int24 lowerTick_,
-        int24 upperTick_,
-        uint256 burnAmount,
-        uint256 supply,
-        uint128 liquidityBurned
-    ) private {
-        (uint256 burn0, uint256 burn1) =
-            pool.burn(lowerTick_, upperTick_, liquidityBurned);
-
-        (, , , uint128 tokensOwed0, uint128 tokensOwed1) =
-            pool.positions(_getPositionID());
-        uint256 fee0 = uint256(tokensOwed0) - burn0;
-        uint256 fee1 = uint256(tokensOwed1) - burn1;
-
-        (fee0, fee1) = _subtractAdminFees(fee0, fee1);
-
-        burn0 += FullMath.mulDiv(burnAmount, fee0, supply);
-        burn1 += FullMath.mulDiv(burnAmount, fee1, supply);
-
-        // Withdraw tokens to user
-        pool.collect(
-            address(this),
-            lowerTick_,
-            upperTick_,
-            uint128(burn0), // cast can't overflow
-            uint128(burn1) // cast can't overflow
-        );
+        fee0 = token0.balanceOf(address(this)) - preBalance0 - burn0;
+        fee1 = token1.balanceOf(address(this)) - preBalance1 - burn1;
     }
 
     // solhint-disable-next-line function-max-lines
