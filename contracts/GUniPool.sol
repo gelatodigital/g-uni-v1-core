@@ -476,53 +476,50 @@ contract GUniPool is
         uint256 feeAmount,
         address paymentToken
     ) private {
-        (uint128 _liquidity, , , , ) = pool.positions(_getPositionID());
+        uint256 leftover0 =
+            token0.balanceOf(address(this)) - managerBalance0 - gelatoBalance0;
+        uint256 leftover1 =
+            token1.balanceOf(address(this)) - managerBalance1 - gelatoBalance1;
 
+        (uint128 _liquidity, , , , ) = pool.positions(_getPositionID());
         (, , uint256 feesEarned0, uint256 feesEarned1) =
             _withdraw(lowerTick, upperTick, _liquidity);
 
-        uint256 reinvest0;
-        uint256 reinvest1;
+        managerBalance0 += (feesEarned0 * managerFeeBPS) / 10000;
+        managerBalance1 += (feesEarned1 * managerFeeBPS) / 10000;
+        gelatoBalance0 += (feesEarned0 * gelatoFeeBPS) / 10000;
+        gelatoBalance1 += (feesEarned1 * gelatoFeeBPS) / 10000;
+        (feesEarned0, feesEarned1) = _subtractAdminFees(
+            feesEarned0,
+            feesEarned1
+        );
+
         if (paymentToken == address(token0)) {
             require(
-                (feesEarned0 * gelatoRebalanceBPS) / 10000 >= feeAmount,
+                ((feesEarned0 + leftover0) * gelatoRebalanceBPS) / 10000 >=
+                    feeAmount,
                 "high fee"
             );
-            managerBalance0 +=
-                ((feesEarned0 - feeAmount) * managerFeeBPS) /
-                10000;
-            managerBalance1 += (feesEarned1 * managerFeeBPS) / 10000;
-            gelatoBalance0 +=
-                ((feesEarned0 - feeAmount) * gelatoFeeBPS) /
-                10000;
-            gelatoBalance1 += (feesEarned1 * gelatoFeeBPS) / 10000;
-            reinvest0 =
+            leftover0 =
                 token0.balanceOf(address(this)) -
                 managerBalance0 -
                 gelatoBalance0 -
                 feeAmount;
-            reinvest1 =
+            leftover1 =
                 token1.balanceOf(address(this)) -
                 managerBalance1 -
                 gelatoBalance1;
         } else if (paymentToken == address(token1)) {
             require(
-                (feesEarned1 * gelatoRebalanceBPS) / 10000 >= feeAmount,
+                ((feesEarned1 + leftover1) * gelatoRebalanceBPS) / 10000 >=
+                    feeAmount,
                 "high fee"
             );
-            managerBalance0 += (feesEarned0 * managerFeeBPS) / 10000;
-            managerBalance1 +=
-                ((feesEarned1 - feeAmount) * managerFeeBPS) /
-                10000;
-            gelatoBalance0 += (feesEarned0 * gelatoFeeBPS) / 10000;
-            gelatoBalance1 +=
-                ((feesEarned1 - feeAmount) * gelatoFeeBPS) /
-                10000;
-            reinvest0 =
+            leftover0 =
                 token0.balanceOf(address(this)) -
                 managerBalance0 -
                 gelatoBalance0;
-            reinvest1 =
+            leftover1 =
                 token1.balanceOf(address(this)) -
                 managerBalance1 -
                 gelatoBalance1 -
@@ -534,8 +531,8 @@ contract GUniPool is
         _deposit(
             lowerTick,
             upperTick,
-            reinvest0,
-            reinvest1,
+            leftover0,
+            leftover1,
             swapThresholdPrice,
             swapAmountBPS,
             zeroForOne
