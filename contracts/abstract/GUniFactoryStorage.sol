@@ -4,7 +4,7 @@ pragma solidity 0.8.4;
 import {OwnableUninitialized} from "./OwnableUninitialized.sol";
 import {
     Initializable
-} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {
     EnumerableSet
 } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";

@@ -16,6 +16,7 @@ import {
     IERC20,
     SafeERC20
 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {
     FullMath,
     LiquidityAmounts
@@ -117,12 +118,11 @@ contract GUniPool is
             );
         } else {
             // if supply is 0 mintAmount == liquidity to deposit
-            require(mintAmount <= type(uint128).max);
             (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(
                 sqrtRatioX96,
                 lowerTick.getSqrtRatioAtTick(),
                 upperTick.getSqrtRatioAtTick(),
-                uint128(mintAmount)
+                SafeCast.toUint128(mintAmount)
             );
         }
 
@@ -172,12 +172,14 @@ contract GUniPool is
 
         _burn(msg.sender, burnAmount);
 
-        uint256 _liquidityBurned_ =
+        uint256 liquidityBurned_ =
             FullMath.mulDiv(burnAmount, liquidity, totalSupply);
-        require(_liquidityBurned_ < type(uint128).max);
-        liquidityBurned = uint128(_liquidityBurned_);
         (uint256 burn0, uint256 burn1, uint256 fee0, uint256 fee1) =
-            _withdraw(lowerTick, upperTick, liquidityBurned);
+            _withdraw(
+                lowerTick,
+                upperTick,
+                SafeCast.toUint128(liquidityBurned_)
+            );
         gelatoBalance0 += (fee0 * gelatoFeeBPS) / 10000;
         gelatoBalance1 += (fee1 * gelatoFeeBPS) / 10000;
         managerBalance0 += (fee0 * managerFeeBPS) / 10000;
@@ -280,13 +282,18 @@ contract GUniPool is
         if (swapAmountBPS > 0) {
             _checkSlippage(swapThresholdPrice, zeroForOne);
         }
+        (uint128 liquidity, , , , ) = pool.positions(_getPositionID());
         _rebalance(
+            liquidity,
             swapThresholdPrice,
             swapAmountBPS,
             zeroForOne,
             feeAmount,
             paymentToken
         );
+
+        (uint128 newLiquidity, , , , ) = pool.positions(_getPositionID());
+        require(newLiquidity >= liquidity, "liquidity decrease");
 
         emit Rebalance(lowerTick, upperTick);
     }
@@ -425,7 +432,7 @@ contract GUniPool is
         returns (uint256 amount0Current, uint256 amount1Current)
     {
         (
-            uint128 _liquidity,
+            uint128 liquidity,
             uint256 feeGrowthInside0Last,
             uint256 feeGrowthInside1Last,
             uint128 tokensOwed0,
@@ -440,15 +447,15 @@ contract GUniPool is
             sqrtRatioX96,
             lowerTick.getSqrtRatioAtTick(),
             upperTick.getSqrtRatioAtTick(),
-            _liquidity
+            liquidity
         );
 
         // compute current fees earned
         uint256 fee0 =
-            _computeFeesEarned(true, feeGrowthInside0Last, tick, _liquidity) +
+            _computeFeesEarned(true, feeGrowthInside0Last, tick, liquidity) +
                 uint256(tokensOwed0);
         uint256 fee1 =
-            _computeFeesEarned(false, feeGrowthInside1Last, tick, _liquidity) +
+            _computeFeesEarned(false, feeGrowthInside1Last, tick, liquidity) +
                 uint256(tokensOwed1);
 
         (fee0, fee1) = _subtractAdminFees(fee0, fee1);
@@ -470,6 +477,7 @@ contract GUniPool is
 
     // solhint-disable-next-line function-max-lines
     function _rebalance(
+        uint128 liquidity,
         uint160 swapThresholdPrice,
         uint256 swapAmountBPS,
         bool zeroForOne,
@@ -481,9 +489,8 @@ contract GUniPool is
         uint256 leftover1 =
             token1.balanceOf(address(this)) - managerBalance1 - gelatoBalance1;
 
-        (uint128 _liquidity, , , , ) = pool.positions(_getPositionID());
         (, , uint256 feesEarned0, uint256 feesEarned1) =
-            _withdraw(lowerTick, upperTick, _liquidity);
+            _withdraw(lowerTick, upperTick, liquidity);
 
         managerBalance0 += (feesEarned0 * managerFeeBPS) / 10000;
         managerBalance1 += (feesEarned1 * managerFeeBPS) / 10000;
@@ -493,11 +500,12 @@ contract GUniPool is
             feesEarned0,
             feesEarned1
         );
+        feesEarned0 += leftover0;
+        feesEarned1 += leftover1;
 
         if (paymentToken == address(token0)) {
             require(
-                ((feesEarned0 + leftover0) * gelatoRebalanceBPS) / 10000 >=
-                    feeAmount,
+                (feesEarned0 * gelatoRebalanceBPS) / 10000 >= feeAmount,
                 "high fee"
             );
             leftover0 =
@@ -511,8 +519,7 @@ contract GUniPool is
                 gelatoBalance1;
         } else if (paymentToken == address(token1)) {
             require(
-                ((feesEarned1 + leftover1) * gelatoRebalanceBPS) / 10000 >=
-                    feeAmount,
+                (feesEarned1 * gelatoRebalanceBPS) / 10000 >= feeAmount,
                 "high fee"
             );
             leftover0 =
@@ -604,7 +611,9 @@ contract GUniPool is
             amount1 -= amountDeposited1;
         }
         int256 swapAmount =
-            int256(((zeroForOne ? amount0 : amount1) * swapAmountBPS) / 10000);
+            SafeCast.toInt256(
+                ((zeroForOne ? amount0 : amount1) * swapAmountBPS) / 10000
+            );
         if (swapAmount > 0) {
             _swapAndDeposit(
                 lowerTick_,
@@ -635,8 +644,8 @@ contract GUniPool is
                 swapThresholdPrice,
                 ""
             );
-        finalAmount0 = uint256(int256(amount0) - amount0Delta);
-        finalAmount1 = uint256(int256(amount1) - amount1Delta);
+        finalAmount0 = uint256(SafeCast.toInt256(amount0) - amount0Delta);
+        finalAmount1 = uint256(SafeCast.toInt256(amount1) - amount1Delta);
 
         // Add liquidity a second time
         (uint160 sqrtRatioX96, , , , , , ) = pool.slot0();
@@ -783,7 +792,7 @@ contract GUniPool is
 
         (int56[] memory tickCumulatives, ) = pool.observe(secondsAgo);
 
-        require(tickCumulatives.length == 2, "array length");
+        require(tickCumulatives.length == 2, "array len");
         uint160 avgSqrtRatioX96;
         unchecked {
             int24 avgTick =
@@ -798,12 +807,12 @@ contract GUniPool is
         if (zeroForOne) {
             require(
                 swapThresholdPrice >= avgSqrtRatioX96 - maxSlippage,
-                "unacceptable slippage"
+                "high slippage"
             );
         } else {
             require(
                 swapThresholdPrice <= avgSqrtRatioX96 + maxSlippage,
-                "unacceptable slippage"
+                "high slippage"
             );
         }
     }
