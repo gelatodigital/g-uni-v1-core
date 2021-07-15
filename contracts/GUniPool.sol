@@ -180,10 +180,7 @@ contract GUniPool is
                 upperTick,
                 SafeCast.toUint128(liquidityBurned_)
             );
-        gelatoBalance0 += (fee0 * gelatoFeeBPS) / 10000;
-        gelatoBalance1 += (fee1 * gelatoFeeBPS) / 10000;
-        managerBalance0 += (fee0 * managerFeeBPS) / 10000;
-        managerBalance1 += (fee1 * managerFeeBPS) / 10000;
+        _applyFees(fee0, fee1);
         amount0 =
             burn0 +
             FullMath.mulDiv(
@@ -238,13 +235,10 @@ contract GUniPool is
         bool zeroForOne
     ) external onlyManager {
         (uint128 _liquidity, , , , ) = pool.positions(_getPositionID());
-        (, , uint256 feesEarned0, uint256 feesEarned1) =
+        (, , uint256 fee0, uint256 fee1) =
             _withdraw(lowerTick, upperTick, _liquidity);
 
-        managerBalance0 += (feesEarned0 * managerFeeBPS) / 10000;
-        managerBalance1 += (feesEarned1 * managerFeeBPS) / 10000;
-        gelatoBalance0 += (feesEarned0 * gelatoFeeBPS) / 10000;
-        gelatoBalance1 += (feesEarned1 * gelatoFeeBPS) / 10000;
+        _applyFees(fee0, fee1);
 
         lowerTick = newLowerTick;
         upperTick = newUpperTick;
@@ -492,10 +486,8 @@ contract GUniPool is
         (, , uint256 feesEarned0, uint256 feesEarned1) =
             _withdraw(lowerTick, upperTick, liquidity);
 
-        managerBalance0 += (feesEarned0 * managerFeeBPS) / 10000;
-        managerBalance1 += (feesEarned1 * managerFeeBPS) / 10000;
-        gelatoBalance0 += (feesEarned0 * gelatoFeeBPS) / 10000;
-        gelatoBalance1 += (feesEarned1 * gelatoFeeBPS) / 10000;
+        _applyFees(feesEarned0, feesEarned1);
+
         (feesEarned0, feesEarned1) = _subtractAdminFees(
             feesEarned0,
             feesEarned1
@@ -769,6 +761,13 @@ contract GUniPool is
                 0x100000000000000000000000000000000
             );
         }
+    }
+
+    function _applyFees(uint256 _fee0, uint256 _fee1) private {
+        gelatoBalance0 += (_fee0 * gelatoFeeBPS) / 10000;
+        gelatoBalance1 += (_fee1 * gelatoFeeBPS) / 10000;
+        managerBalance0 += (_fee0 * managerFeeBPS) / 10000;
+        managerBalance1 += (_fee1 * managerFeeBPS) / 10000;
     }
 
     function _subtractAdminFees(uint256 rawFee0, uint256 rawFee1)
