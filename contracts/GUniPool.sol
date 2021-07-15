@@ -16,6 +16,7 @@ import {
     IERC20,
     SafeERC20
 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {
     FullMath,
     LiquidityAmounts
@@ -117,12 +118,11 @@ contract GUniPool is
             );
         } else {
             // if supply is 0 mintAmount == liquidity to deposit
-            require(mintAmount <= type(uint128).max);
             (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(
                 sqrtRatioX96,
                 lowerTick.getSqrtRatioAtTick(),
                 upperTick.getSqrtRatioAtTick(),
-                uint128(mintAmount)
+                SafeCast.toUint128(mintAmount)
             );
         }
 
@@ -172,40 +172,35 @@ contract GUniPool is
 
         _burn(msg.sender, burnAmount);
 
-        uint256 _liquidityBurned_ =
+        uint256 liquidityBurned_ =
             FullMath.mulDiv(burnAmount, liquidity, totalSupply);
-        require(_liquidityBurned_ < type(uint128).max);
-        liquidityBurned = uint128(_liquidityBurned_);
-
-        uint256 preBalance0 = token0.balanceOf(address(this));
-        uint256 preBalance1 = token1.balanceOf(address(this));
-        uint256 leftoverShare0 =
-            FullMath.mulDiv(
-                burnAmount,
-                preBalance0 - managerBalance0 - gelatoBalance0,
-                totalSupply
+        (uint256 burn0, uint256 burn1, uint256 fee0, uint256 fee1) =
+            _withdraw(
+                lowerTick,
+                upperTick,
+                SafeCast.toUint128(liquidityBurned_)
             );
-        uint256 leftoverShare1 =
-            FullMath.mulDiv(
-                burnAmount,
-                preBalance1 - managerBalance1 - gelatoBalance1,
-                totalSupply
-            );
-
-        _withdrawExact(
-            lowerTick,
-            upperTick,
-            burnAmount,
-            totalSupply,
-            liquidityBurned
-        );
-
+        _applyFees(fee0, fee1);
         amount0 =
-            (token0.balanceOf(address(this)) - preBalance0) +
-            leftoverShare0;
+            burn0 +
+            FullMath.mulDiv(
+                token0.balanceOf(address(this)) -
+                    burn0 -
+                    managerBalance0 -
+                    gelatoBalance0,
+                burnAmount,
+                totalSupply
+            );
         amount1 =
-            (token1.balanceOf(address(this)) - preBalance1) +
-            leftoverShare1;
+            burn1 +
+            FullMath.mulDiv(
+                token1.balanceOf(address(this)) -
+                    burn1 -
+                    managerBalance1 -
+                    gelatoBalance1,
+                burnAmount,
+                totalSupply
+            );
 
         if (amount0 > 0) {
             token0.safeTransfer(receiver, amount0);
@@ -240,13 +235,10 @@ contract GUniPool is
         bool zeroForOne
     ) external onlyManager {
         (uint128 _liquidity, , , , ) = pool.positions(_getPositionID());
-        (uint256 feesEarned0, uint256 feesEarned1) =
-            _withdrawAll(lowerTick, upperTick, _liquidity);
+        (, , uint256 fee0, uint256 fee1) =
+            _withdraw(lowerTick, upperTick, _liquidity);
 
-        managerBalance0 += (feesEarned0 * managerFeeBPS) / 10000;
-        managerBalance1 += (feesEarned1 * managerFeeBPS) / 10000;
-        gelatoBalance0 += (feesEarned0 * gelatoFeeBPS) / 10000;
-        gelatoBalance1 += (feesEarned1 * gelatoFeeBPS) / 10000;
+        _applyFees(fee0, fee1);
 
         lowerTick = newLowerTick;
         upperTick = newUpperTick;
@@ -284,13 +276,18 @@ contract GUniPool is
         if (swapAmountBPS > 0) {
             _checkSlippage(swapThresholdPrice, zeroForOne);
         }
+        (uint128 liquidity, , , , ) = pool.positions(_getPositionID());
         _rebalance(
+            liquidity,
             swapThresholdPrice,
             swapAmountBPS,
             zeroForOne,
             feeAmount,
             paymentToken
         );
+
+        (uint128 newLiquidity, , , , ) = pool.positions(_getPositionID());
+        require(newLiquidity >= liquidity, "liquidity decrease");
 
         emit Rebalance(lowerTick, upperTick);
     }
@@ -429,7 +426,7 @@ contract GUniPool is
         returns (uint256 amount0Current, uint256 amount1Current)
     {
         (
-            uint128 _liquidity,
+            uint128 liquidity,
             uint256 feeGrowthInside0Last,
             uint256 feeGrowthInside1Last,
             uint128 tokensOwed0,
@@ -444,15 +441,15 @@ contract GUniPool is
             sqrtRatioX96,
             lowerTick.getSqrtRatioAtTick(),
             upperTick.getSqrtRatioAtTick(),
-            _liquidity
+            liquidity
         );
 
         // compute current fees earned
         uint256 fee0 =
-            _computeFeesEarned(true, feeGrowthInside0Last, tick, _liquidity) +
+            _computeFeesEarned(true, feeGrowthInside0Last, tick, liquidity) +
                 uint256(tokensOwed0);
         uint256 fee1 =
-            _computeFeesEarned(false, feeGrowthInside1Last, tick, _liquidity) +
+            _computeFeesEarned(false, feeGrowthInside1Last, tick, liquidity) +
                 uint256(tokensOwed1);
 
         (fee0, fee1) = _subtractAdminFees(fee0, fee1);
@@ -474,38 +471,41 @@ contract GUniPool is
 
     // solhint-disable-next-line function-max-lines
     function _rebalance(
+        uint128 liquidity,
         uint160 swapThresholdPrice,
         uint256 swapAmountBPS,
         bool zeroForOne,
         uint256 feeAmount,
         address paymentToken
     ) private {
-        (uint128 _liquidity, , , , ) = pool.positions(_getPositionID());
+        uint256 leftover0 =
+            token0.balanceOf(address(this)) - managerBalance0 - gelatoBalance0;
+        uint256 leftover1 =
+            token1.balanceOf(address(this)) - managerBalance1 - gelatoBalance1;
 
-        (uint256 feesEarned0, uint256 feesEarned1) =
-            _withdrawAll(lowerTick, upperTick, _liquidity);
+        (, , uint256 feesEarned0, uint256 feesEarned1) =
+            _withdraw(lowerTick, upperTick, liquidity);
 
-        uint256 reinvest0;
-        uint256 reinvest1;
+        _applyFees(feesEarned0, feesEarned1);
+
+        (feesEarned0, feesEarned1) = _subtractAdminFees(
+            feesEarned0,
+            feesEarned1
+        );
+        feesEarned0 += leftover0;
+        feesEarned1 += leftover1;
+
         if (paymentToken == address(token0)) {
             require(
                 (feesEarned0 * gelatoRebalanceBPS) / 10000 >= feeAmount,
                 "high fee"
             );
-            managerBalance0 +=
-                ((feesEarned0 - feeAmount) * managerFeeBPS) /
-                10000;
-            managerBalance1 += (feesEarned1 * managerFeeBPS) / 10000;
-            gelatoBalance0 +=
-                ((feesEarned0 - feeAmount) * gelatoFeeBPS) /
-                10000;
-            gelatoBalance1 += (feesEarned1 * gelatoFeeBPS) / 10000;
-            reinvest0 =
+            leftover0 =
                 token0.balanceOf(address(this)) -
                 managerBalance0 -
                 gelatoBalance0 -
                 feeAmount;
-            reinvest1 =
+            leftover1 =
                 token1.balanceOf(address(this)) -
                 managerBalance1 -
                 gelatoBalance1;
@@ -514,19 +514,11 @@ contract GUniPool is
                 (feesEarned1 * gelatoRebalanceBPS) / 10000 >= feeAmount,
                 "high fee"
             );
-            managerBalance0 += (feesEarned0 * managerFeeBPS) / 10000;
-            managerBalance1 +=
-                ((feesEarned1 - feeAmount) * managerFeeBPS) /
-                10000;
-            gelatoBalance0 += (feesEarned0 * gelatoFeeBPS) / 10000;
-            gelatoBalance1 +=
-                ((feesEarned1 - feeAmount) * gelatoFeeBPS) /
-                10000;
-            reinvest0 =
+            leftover0 =
                 token0.balanceOf(address(this)) -
                 managerBalance0 -
                 gelatoBalance0;
-            reinvest1 =
+            leftover1 =
                 token1.balanceOf(address(this)) -
                 managerBalance1 -
                 gelatoBalance1 -
@@ -538,8 +530,8 @@ contract GUniPool is
         _deposit(
             lowerTick,
             upperTick,
-            reinvest0,
-            reinvest1,
+            leftover0,
+            leftover1,
             swapThresholdPrice,
             swapAmountBPS,
             zeroForOne
@@ -547,16 +539,23 @@ contract GUniPool is
     }
 
     // solhint-disable-next-line function-max-lines
-    function _withdrawAll(
+    function _withdraw(
         int24 lowerTick_,
         int24 upperTick_,
         uint128 liquidity
-    ) private returns (uint256 amountEarned0, uint256 amountEarned1) {
+    )
+        private
+        returns (
+            uint256 burn0,
+            uint256 burn1,
+            uint256 fee0,
+            uint256 fee1
+        )
+    {
         uint256 preBalance0 = token0.balanceOf(address(this));
         uint256 preBalance1 = token1.balanceOf(address(this));
 
-        (uint256 amount0Burned, uint256 amount1Burned) =
-            pool.burn(lowerTick_, upperTick_, liquidity);
+        (burn0, burn1) = pool.burn(lowerTick_, upperTick_, liquidity);
 
         pool.collect(
             address(this),
@@ -566,44 +565,8 @@ contract GUniPool is
             type(uint128).max
         );
 
-        amountEarned0 =
-            token0.balanceOf(address(this)) -
-            preBalance0 -
-            amount0Burned;
-        amountEarned1 =
-            token1.balanceOf(address(this)) -
-            preBalance1 -
-            amount1Burned;
-    }
-
-    function _withdrawExact(
-        int24 lowerTick_,
-        int24 upperTick_,
-        uint256 burnAmount,
-        uint256 supply,
-        uint128 liquidityBurned
-    ) private {
-        (uint256 burn0, uint256 burn1) =
-            pool.burn(lowerTick_, upperTick_, liquidityBurned);
-
-        (, , , uint128 tokensOwed0, uint128 tokensOwed1) =
-            pool.positions(_getPositionID());
-        uint256 fee0 = uint256(tokensOwed0) - burn0;
-        uint256 fee1 = uint256(tokensOwed1) - burn1;
-
-        (fee0, fee1) = _subtractAdminFees(fee0, fee1);
-
-        burn0 += FullMath.mulDiv(burnAmount, fee0, supply);
-        burn1 += FullMath.mulDiv(burnAmount, fee1, supply);
-
-        // Withdraw tokens to user
-        pool.collect(
-            address(this),
-            lowerTick_,
-            upperTick_,
-            uint128(burn0), // cast can't overflow
-            uint128(burn1) // cast can't overflow
-        );
+        fee0 = token0.balanceOf(address(this)) - preBalance0 - burn0;
+        fee1 = token1.balanceOf(address(this)) - preBalance1 - burn1;
     }
 
     // solhint-disable-next-line function-max-lines
@@ -640,7 +603,9 @@ contract GUniPool is
             amount1 -= amountDeposited1;
         }
         int256 swapAmount =
-            int256(((zeroForOne ? amount0 : amount1) * swapAmountBPS) / 10000);
+            SafeCast.toInt256(
+                ((zeroForOne ? amount0 : amount1) * swapAmountBPS) / 10000
+            );
         if (swapAmount > 0) {
             _swapAndDeposit(
                 lowerTick_,
@@ -671,8 +636,8 @@ contract GUniPool is
                 swapThresholdPrice,
                 ""
             );
-        finalAmount0 = uint256(int256(amount0) - amount0Delta);
-        finalAmount1 = uint256(int256(amount1) - amount1Delta);
+        finalAmount0 = uint256(SafeCast.toInt256(amount0) - amount0Delta);
+        finalAmount1 = uint256(SafeCast.toInt256(amount1) - amount1Delta);
 
         // Add liquidity a second time
         (uint160 sqrtRatioX96, , , , , , ) = pool.slot0();
@@ -798,6 +763,13 @@ contract GUniPool is
         }
     }
 
+    function _applyFees(uint256 _fee0, uint256 _fee1) private {
+        gelatoBalance0 += (_fee0 * gelatoFeeBPS) / 10000;
+        gelatoBalance1 += (_fee1 * gelatoFeeBPS) / 10000;
+        managerBalance0 += (_fee0 * managerFeeBPS) / 10000;
+        managerBalance1 += (_fee1 * managerFeeBPS) / 10000;
+    }
+
     function _subtractAdminFees(uint256 rawFee0, uint256 rawFee1)
         private
         view
@@ -819,7 +791,7 @@ contract GUniPool is
 
         (int56[] memory tickCumulatives, ) = pool.observe(secondsAgo);
 
-        require(tickCumulatives.length == 2, "array length");
+        require(tickCumulatives.length == 2, "array len");
         uint160 avgSqrtRatioX96;
         unchecked {
             int24 avgTick =
@@ -834,12 +806,12 @@ contract GUniPool is
         if (zeroForOne) {
             require(
                 swapThresholdPrice >= avgSqrtRatioX96 - maxSlippage,
-                "unacceptable slippage"
+                "high slippage"
             );
         } else {
             require(
                 swapThresholdPrice <= avgSqrtRatioX96 + maxSlippage,
-                "unacceptable slippage"
+                "high slippage"
             );
         }
     }

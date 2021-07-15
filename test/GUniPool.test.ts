@@ -438,9 +438,6 @@ describe("GUniPool", function () {
             );
             expect(liquidityNew).to.be.gt(liquidityOld);
 
-            const gelatoBalance0 = await gUniPool.gelatoBalance0();
-            const gelatoBalance1 = await gUniPool.gelatoBalance1();
-
             // console.log(gelatoBalance0.toString(), gelatoBalance1.toString());
 
             await gUniPool.burn(
@@ -454,6 +451,9 @@ describe("GUniPool", function () {
             //   contractBalance0.toString(),
             //   contractBalance1.toString()
             // );
+
+            const gelatoBalance0 = await gUniPool.gelatoBalance0();
+            const gelatoBalance1 = await gUniPool.gelatoBalance1();
 
             expect(contractBalance0).to.equal(gelatoBalance0);
             expect(contractBalance1).to.equal(gelatoBalance1);
