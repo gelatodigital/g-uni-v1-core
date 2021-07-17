@@ -46,7 +46,12 @@ contract GUniPool is
         uint128 liquidityBurned
     );
 
-    event Rebalance(int24 lowerTick_, int24 upperTick_);
+    event Rebalance(
+        int24 lowerTick_,
+        int24 upperTick_,
+        uint128 liquidityBefore,
+        uint128 liquidityAfter
+    );
 
     // solhint-disable-next-line max-line-length
     constructor(address payable _gelato) GUniPoolStorage(_gelato) {} // solhint-disable-line no-empty-blocks
@@ -139,8 +144,8 @@ contract GUniPool is
             sqrtRatioX96,
             lowerTick.getSqrtRatioAtTick(),
             upperTick.getSqrtRatioAtTick(),
-            token0.balanceOf(address(this)) - managerBalance0 - gelatoBalance0,
-            token1.balanceOf(address(this)) - managerBalance1 - gelatoBalance1
+            amount0,
+            amount1
         );
         pool.mint(address(this), lowerTick, upperTick, liquidityMinted, "");
 
@@ -234,9 +239,9 @@ contract GUniPool is
         uint256 swapAmountBPS,
         bool zeroForOne
     ) external onlyManager {
-        (uint128 _liquidity, , , , ) = pool.positions(_getPositionID());
+        (uint128 liquidity, , , , ) = pool.positions(_getPositionID());
         (, , uint256 fee0, uint256 fee1) =
-            _withdraw(lowerTick, upperTick, _liquidity);
+            _withdraw(lowerTick, upperTick, liquidity);
 
         _applyFees(fee0, fee1);
 
@@ -258,7 +263,9 @@ contract GUniPool is
             zeroForOne
         );
 
-        emit Rebalance(newLowerTick, newUpperTick);
+        (uint128 newLiquidity, , , , ) = pool.positions(_getPositionID());
+
+        emit Rebalance(newLowerTick, newUpperTick, liquidity, newLiquidity);
     }
 
     // Gelatofied functions => Automatically called by Gelato
@@ -289,7 +296,7 @@ contract GUniPool is
         (uint128 newLiquidity, , , , ) = pool.positions(_getPositionID());
         require(newLiquidity >= liquidity, "liquidity decrease");
 
-        emit Rebalance(lowerTick, upperTick);
+        emit Rebalance(lowerTick, upperTick, liquidity, newLiquidity);
     }
 
     /// @notice withdraw manager fees accrued, only gelato executors can call.
