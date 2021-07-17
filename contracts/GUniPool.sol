@@ -144,8 +144,8 @@ contract GUniPool is
             sqrtRatioX96,
             lowerTick.getSqrtRatioAtTick(),
             upperTick.getSqrtRatioAtTick(),
-            token0.balanceOf(address(this)) - managerBalance0 - gelatoBalance0,
-            token1.balanceOf(address(this)) - managerBalance1 - gelatoBalance1
+            amount0,
+            amount1
         );
         pool.mint(address(this), lowerTick, upperTick, liquidityMinted, "");
 
