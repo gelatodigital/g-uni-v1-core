@@ -62,7 +62,7 @@ contract GUniPool is
         uint256 amount1Owed,
         bytes calldata /*_data*/
     ) external override {
-        require(msg.sender == address(pool));
+        require(msg.sender == address(pool), "callback caller");
 
         if (amount0Owed > 0) token0.safeTransfer(msg.sender, amount0Owed);
         if (amount1Owed > 0) token1.safeTransfer(msg.sender, amount1Owed);
@@ -74,7 +74,7 @@ contract GUniPool is
         int256 amount1Delta,
         bytes calldata /*data*/
     ) external override {
-        require(msg.sender == address(pool));
+        require(msg.sender == address(pool), "callback caller");
 
         if (amount0Delta > 0)
             token0.safeTransfer(msg.sender, uint256(amount0Delta));
