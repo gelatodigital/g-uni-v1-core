@@ -66,6 +66,8 @@ abstract contract GUniPoolStorage is
         uint32 gelatoSlippageInterval
     );
 
+    event SetManagerFee(uint16 managerFee);
+
     // solhint-disable-next-line max-line-length
     constructor(address payable _gelato) Gelatofied(_gelato) {} // solhint-disable-line no-empty-blocks
 
@@ -153,6 +155,7 @@ abstract contract GUniPoolStorage is
             _managerFeeBPS > 0 && _managerFeeBPS <= 10000 - gelatoFeeBPS,
             "mBPS"
         );
+        emit SetManagerFee(_managerFeeBPS);
         managerFeeBPS = _managerFeeBPS;
     }
 

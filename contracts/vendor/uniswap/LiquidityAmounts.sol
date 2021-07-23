@@ -71,7 +71,7 @@ library LiquidityAmounts {
         if (sqrtRatioAX96 > sqrtRatioBX96)
             (sqrtRatioAX96, sqrtRatioBX96) = (sqrtRatioBX96, sqrtRatioAX96);
 
-        if (sqrtRatioX96 < sqrtRatioAX96) {
+        if (sqrtRatioX96 <= sqrtRatioAX96) {
             liquidity = getLiquidityForAmount0(
                 sqrtRatioAX96,
                 sqrtRatioBX96,
@@ -146,7 +146,7 @@ library LiquidityAmounts {
         if (sqrtRatioAX96 > sqrtRatioBX96)
             (sqrtRatioAX96, sqrtRatioBX96) = (sqrtRatioBX96, sqrtRatioAX96);
 
-        if (sqrtRatioX96 < sqrtRatioAX96) {
+        if (sqrtRatioX96 <= sqrtRatioAX96) {
             amount0 = getAmount0ForLiquidity(
                 sqrtRatioAX96,
                 sqrtRatioBX96,
