@@ -53,6 +53,8 @@ contract GUniPool is
         uint128 liquidityAfter
     );
 
+    event FeesEarned(uint256 feesEarned0, uint256 feesEarned1);
+
     // solhint-disable-next-line max-line-length
     constructor(address payable _gelato) GUniPoolStorage(_gelato) {} // solhint-disable-line no-empty-blocks
 
@@ -186,6 +188,8 @@ contract GUniPool is
                 SafeCast.toUint128(liquidityBurned_)
             );
         _applyFees(fee0, fee1);
+        (fee0, fee1) = _subtractAdminFees(fee0, fee1);
+        emit FeesEarned(fee0, fee1);
         amount0 =
             burn0 +
             FullMath.mulDiv(
@@ -244,6 +248,8 @@ contract GUniPool is
             _withdraw(lowerTick, upperTick, liquidity);
 
         _applyFees(fee0, fee1);
+        (fee0, fee1) = _subtractAdminFees(fee0, fee1);
+        emit FeesEarned(fee0, fee1);
 
         lowerTick = newLowerTick;
         upperTick = newUpperTick;
@@ -426,9 +432,27 @@ contract GUniPool is
     /// and any uninvested leftover (but does not include manager or gelato fees accrued)
     /// @return amount0Current current total underlying balance of token0
     /// @return amount1Current current total underlying balance of token1
-    // solhint-disable-next-line function-max-lines
     function getUnderlyingBalances()
         public
+        view
+        returns (uint256 amount0Current, uint256 amount1Current)
+    {
+        (uint160 sqrtRatioX96, int24 tick, , , , , ) = pool.slot0();
+        return _getUnderlyingBalances(sqrtRatioX96, tick);
+    }
+
+    function getUnderlyingBalances(uint160 sqrtRatioX96)
+        public
+        view
+        returns (uint256 amount0Current, uint256 amount1Current)
+    {
+        (, int24 tick, , , , , ) = pool.slot0();
+        return _getUnderlyingBalances(sqrtRatioX96, tick);
+    }
+
+    // solhint-disable-next-line function-max-lines
+    function _getUnderlyingBalances(uint160 sqrtRatioX96, int24 tick)
+        internal
         view
         returns (uint256 amount0Current, uint256 amount1Current)
     {
@@ -439,8 +463,6 @@ contract GUniPool is
             uint128 tokensOwed0,
             uint128 tokensOwed1
         ) = pool.positions(_getPositionID());
-
-        (uint160 sqrtRatioX96, int24 tick, , , , , ) = pool.slot0();
 
         // compute current holdings from liquidity
         (amount0Current, amount1Current) = LiquidityAmounts
@@ -499,6 +521,7 @@ contract GUniPool is
             feesEarned0,
             feesEarned1
         );
+        emit FeesEarned(feesEarned0, feesEarned1);
         feesEarned0 += leftover0;
         feesEarned1 += leftover1;
 
