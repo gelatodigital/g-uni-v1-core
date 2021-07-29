@@ -441,8 +441,8 @@ contract GUniPool is
         return _getUnderlyingBalances(sqrtRatioX96, tick);
     }
 
-    function getUnderlyingBalances(uint160 sqrtRatioX96)
-        public
+    function getUnderlyingBalancesAtPrice(uint160 sqrtRatioX96)
+        external
         view
         returns (uint256 amount0Current, uint256 amount1Current)
     {
