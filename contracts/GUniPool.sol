@@ -181,12 +181,9 @@ contract GUniPool is
 
         uint256 liquidityBurned_ =
             FullMath.mulDiv(burnAmount, liquidity, totalSupply);
+        liquidityBurned = SafeCast.toUint128(liquidityBurned_);
         (uint256 burn0, uint256 burn1, uint256 fee0, uint256 fee1) =
-            _withdraw(
-                lowerTick,
-                upperTick,
-                SafeCast.toUint128(liquidityBurned_)
-            );
+            _withdraw(lowerTick, upperTick, liquidityBurned);
         _applyFees(fee0, fee1);
         (fee0, fee1) = _subtractAdminFees(fee0, fee1);
         emit FeesEarned(fee0, fee1);
