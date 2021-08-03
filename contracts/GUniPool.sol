@@ -149,6 +149,7 @@ contract GUniPool is
             amount0,
             amount1
         );
+
         pool.mint(address(this), lowerTick, upperTick, liquidityMinted, "");
 
         _mint(receiver, mintAmount);
@@ -187,6 +188,7 @@ contract GUniPool is
         _applyFees(fee0, fee1);
         (fee0, fee1) = _subtractAdminFees(fee0, fee1);
         emit FeesEarned(fee0, fee1);
+
         amount0 =
             burn0 +
             FullMath.mulDiv(
@@ -241,12 +243,14 @@ contract GUniPool is
         bool zeroForOne
     ) external onlyManager {
         (uint128 liquidity, , , , ) = pool.positions(_getPositionID());
-        (, , uint256 fee0, uint256 fee1) =
-            _withdraw(lowerTick, upperTick, liquidity);
+        if (liquidity > 0) {
+            (, , uint256 fee0, uint256 fee1) =
+                _withdraw(lowerTick, upperTick, liquidity);
 
-        _applyFees(fee0, fee1);
-        (fee0, fee1) = _subtractAdminFees(fee0, fee1);
-        emit FeesEarned(fee0, fee1);
+            _applyFees(fee0, fee1);
+            (fee0, fee1) = _subtractAdminFees(fee0, fee1);
+            emit FeesEarned(fee0, fee1);
+        }
 
         lowerTick = newLowerTick;
         upperTick = newUpperTick;
@@ -267,7 +271,7 @@ contract GUniPool is
         );
 
         (uint128 newLiquidity, , , , ) = pool.positions(_getPositionID());
-
+        require(newLiquidity > 0, "new position 0");
         emit Rebalance(newLowerTick, newUpperTick, liquidity, newLiquidity);
     }
 
@@ -511,9 +515,7 @@ contract GUniPool is
 
         (, , uint256 feesEarned0, uint256 feesEarned1) =
             _withdraw(lowerTick, upperTick, liquidity);
-
         _applyFees(feesEarned0, feesEarned1);
-
         (feesEarned0, feesEarned1) = _subtractAdminFees(
             feesEarned0,
             feesEarned1
