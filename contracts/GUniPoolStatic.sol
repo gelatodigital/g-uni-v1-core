@@ -246,6 +246,8 @@ contract GUniPoolStatic is
         );
 
         emit Rebalance(_newLowerTick, _newUpperTick);
+        (uint128 liquidityAfter, , , , ) = pool.positions(_getPositionID());
+        require(liquidityAfter > 0, "liquidity 0");
     }
 
     function autoWithdrawAdminBalance(uint256 feeAmount, address feeToken)
@@ -694,7 +696,7 @@ contract GUniPoolStatic is
 
         (int56[] memory tickCumulatives, ) = pool.observe(secondsAgo);
 
-        require(tickCumulatives.length == 2, "array length");
+        //require(tickCumulatives.length == 2, "array length");
         uint160 avgSqrtRatioX96;
         unchecked {
             int24 avgTick =
