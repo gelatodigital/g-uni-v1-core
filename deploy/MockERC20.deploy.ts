@@ -6,7 +6,8 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   if (
     hre.network.name === "mainnet" ||
     hre.network.name === "rinkeby" ||
-    hre.network.name === "ropsten"
+    hre.network.name === "ropsten" ||
+    hre.network.name === "goerli"
   ) {
     console.log(
       `!! Deploying MockERC20 to ${hre.network.name}. Hit ctrl + c to abort`
@@ -26,7 +27,8 @@ func.skip = async (hre: HardhatRuntimeEnvironment) => {
   const shouldSkip =
     hre.network.name === "mainnet" ||
     hre.network.name === "rinkeby" ||
-    hre.network.name === "ropsten";
+    hre.network.name === "ropsten" ||
+    hre.network.name === "goerli";
   return shouldSkip ? true : false;
 };
 
