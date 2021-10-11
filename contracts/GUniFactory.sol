@@ -4,6 +4,7 @@ pragma solidity 0.8.4;
 import {
     IUniswapV3Factory
 } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
+import {IUniswapV3TickSpacing} from "./interfaces/IUniswapV3TickSpacing.sol";
 import {IGUniFactory} from "./interfaces/IGUniFactory.sol";
 import {IGUniPoolStorage} from "./interfaces/IGUniPoolStorage.sol";
 import {GUniFactoryStorage} from "./abstract/GUniFactoryStorage.sol";
@@ -23,8 +24,8 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
         GUniFactoryStorage(_uniswapV3Factory)
     {} // solhint-disable-line no-empty-blocks
 
-    /// @notice createPool creates a new instance of a G-UNI token on a specified
-    /// UniswapV3 pool. The msg.sender is the initial manager of the pool and will
+    /// @notice createManagedPool creates a new instance of a G-UNI token on a specified
+    /// UniswapV3Pool. The msg.sender is the initial manager of the pool and will
     /// forever be associated with the G-UNI pool as it's `deployer`
     /// @param tokenA one of the tokens in the uniswap pair
     /// @param tokenB the other token in the uniswap pair
@@ -33,8 +34,7 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
     /// @param lowerTick initial lower bound of the Uniswap V3 position
     /// @param upperTick initial upper bound of the Uniswap V3 position
     /// @return pool the address of the newly created G-UNI pool (proxy)
-    // solhint-disable-next-line function-max-lines
-    function createPool(
+    function createManagedPool(
         address tokenA,
         address tokenB,
         uint24 uniFee,
@@ -42,6 +42,55 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
         int24 lowerTick,
         int24 upperTick
     ) external override returns (address pool) {
+        return
+            _createPool(
+                tokenA,
+                tokenB,
+                uniFee,
+                managerFee,
+                lowerTick,
+                upperTick,
+                msg.sender
+            );
+    }
+
+    /// @notice createStaticPool creates a new instance of a G-UNI token on a specified
+    /// UniswapV3Pool. Here the manager role is immediately burned, however msg.sender will still
+    /// forever be associated with the G-UNI pool as it's `deployer`
+    /// @param tokenA one of the tokens in the uniswap pair
+    /// @param tokenB the other token in the uniswap pair
+    /// @param uniFee fee tier of the uniswap pair
+    /// @param lowerTick initial lower bound of the Uniswap V3 position
+    /// @param upperTick initial upper bound of the Uniswap V3 position
+    /// @return pool the address of the newly created G-UNI pool (proxy)
+    function createStaticPool(
+        address tokenA,
+        address tokenB,
+        uint24 uniFee,
+        int24 lowerTick,
+        int24 upperTick
+    ) external override returns (address pool) {
+        return
+            _createPool(
+                tokenA,
+                tokenB,
+                uniFee,
+                0,
+                lowerTick,
+                upperTick,
+                address(0)
+            );
+    }
+
+    function _createPool(
+        address tokenA,
+        address tokenB,
+        uint24 uniFee,
+        uint16 managerFee,
+        int24 lowerTick,
+        int24 upperTick,
+        address manager
+    ) internal returns (address pool) {
         (address token0, address token1) = _getTokenOrder(tokenA, tokenB);
 
         pool = address(new EIP173Proxy(poolImplementation, address(this), ""));
@@ -53,8 +102,11 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
 
         address uniPool =
             IUniswapV3Factory(factory).getPool(token0, token1, uniFee);
-
         require(uniPool != address(0), "uniswap pool does not exist");
+        require(
+            _validateTickSpacing(uniPool, lowerTick, upperTick),
+            "tickSpacing mismatch"
+        );
 
         IGUniPoolStorage(pool).initialize(
             name,
@@ -63,11 +115,23 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
             managerFee,
             lowerTick,
             upperTick,
-            msg.sender
+            manager
         );
         _deployers.add(msg.sender);
         _pools[msg.sender].add(pool);
-        emit PoolCreated(uniPool, msg.sender, pool);
+        emit PoolCreated(uniPool, manager, pool);
+    }
+
+    function _validateTickSpacing(
+        address uniPool,
+        int24 lowerTick,
+        int24 upperTick
+    ) internal view returns (bool) {
+        int24 spacing = IUniswapV3TickSpacing(uniPool).tickSpacing();
+        return
+            lowerTick < upperTick &&
+            lowerTick % spacing == 0 &&
+            upperTick % spacing == 0;
     }
 
     function getTokenName(address token0, address token1)

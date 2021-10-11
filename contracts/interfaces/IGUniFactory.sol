@@ -8,7 +8,15 @@ interface IGUniFactory {
         address indexed pool
     );
 
-    function createPool(
+    function createStaticPool(
+        address tokenA,
+        address tokenB,
+        uint24 uniFee,
+        int24 lowerTick,
+        int24 upperTick
+    ) external returns (address pool);
+
+    function createManagedPool(
         address tokenA,
         address tokenB,
         uint24 uniFee,
