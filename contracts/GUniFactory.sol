@@ -54,7 +54,7 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
             );
     }
 
-    /// @notice createStaticPool creates a new instance of a G-UNI token on a specified
+    /// @notice createPool creates a new instance of a G-UNI token on a specified
     /// UniswapV3Pool. Here the manager role is immediately burned, however msg.sender will still
     /// forever be associated with the G-UNI pool as it's `deployer`
     /// @param tokenA one of the tokens in the uniswap pair
@@ -63,7 +63,7 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
     /// @param lowerTick initial lower bound of the Uniswap V3 position
     /// @param upperTick initial upper bound of the Uniswap V3 position
     /// @return pool the address of the newly created G-UNI pool (proxy)
-    function createStaticPool(
+    function createPool(
         address tokenA,
         address tokenB,
         uint24 uniFee,

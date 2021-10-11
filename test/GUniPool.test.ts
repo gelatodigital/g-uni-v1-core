@@ -811,7 +811,7 @@ describe("GUniPool", function () {
       });
       describe("factory management", function () {
         it("should create pools correctly", async function () {
-          await gUniFactory.createStaticPool(
+          await gUniFactory.createPool(
             token0.address,
             token1.address,
             3000,
@@ -832,7 +832,7 @@ describe("GUniPool", function () {
             token1.address,
             "500"
           );
-          await gUniFactory.createStaticPool(
+          await gUniFactory.createPool(
             token0.address,
             token1.address,
             500,
@@ -856,7 +856,7 @@ describe("GUniPool", function () {
             token1.address,
             "10000"
           );
-          await gUniFactory.createStaticPool(
+          await gUniFactory.createPool(
             token0.address,
             token1.address,
             10000,
@@ -876,7 +876,7 @@ describe("GUniPool", function () {
           expect(upperTick).to.equal(600);
 
           await expect(
-            gUniFactory.createStaticPool(
+            gUniFactory.createPool(
               token0.address,
               token1.address,
               3000,
@@ -895,7 +895,7 @@ describe("GUniPool", function () {
             )
           ).to.be.reverted;
           await expect(
-            gUniFactory.createStaticPool(
+            gUniFactory.createPool(
               token0.address,
               token1.address,
               10000,
@@ -914,13 +914,7 @@ describe("GUniPool", function () {
             )
           ).to.be.reverted;
           await expect(
-            gUniFactory.createStaticPool(
-              token0.address,
-              token1.address,
-              500,
-              -5,
-              5
-            )
+            gUniFactory.createPool(token0.address, token1.address, 500, -5, 5)
           ).to.be.reverted;
           await expect(
             gUniFactory.createManagedPool(
@@ -933,13 +927,7 @@ describe("GUniPool", function () {
             )
           ).to.be.reverted;
           await expect(
-            gUniFactory.createStaticPool(
-              token0.address,
-              token1.address,
-              500,
-              100,
-              0
-            )
+            gUniFactory.createPool(token0.address, token1.address, 500, 100, 0)
           ).to.be.reverted;
           await expect(
             gUniFactory.createManagedPool(

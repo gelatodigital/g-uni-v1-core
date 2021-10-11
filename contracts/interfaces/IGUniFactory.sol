@@ -8,7 +8,7 @@ interface IGUniFactory {
         address indexed pool
     );
 
-    function createStaticPool(
+    function createPool(
         address tokenA,
         address tokenB,
         uint24 uniFee,
