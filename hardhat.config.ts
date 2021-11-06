@@ -31,6 +31,14 @@ const config: HardhatUserConfig = {
   },
 
   networks: {
+    hardhat: {
+      // Standard config
+      // timeout: 150000,
+      forking: {
+        url: `https://eth-mainnet.alchemyapi.io/v2/${ALCHEMY_ID}`,
+        blockNumber: 13039020,
+      },
+    },
     mainnet: {
       accounts: DEPLOYER_PK_MAINNET
         ? [DEPLOYER_PK_MAINNET]
