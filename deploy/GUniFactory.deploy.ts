@@ -22,9 +22,6 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
 
   await deploy("GUniFactory", {
     from: deployer,
-    proxy: {
-      proxyContract: "EIP173ProxyWithReceive",
-    },
     args: [addresses.UniswapV3Factory],
   });
 };

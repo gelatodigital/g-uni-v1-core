@@ -124,7 +124,7 @@ describe("GUniPool", function () {
       await user0.getAddress()
     );
 
-    await gUniFactory.createPool(
+    await gUniFactory.createManagedPool(
       token0.address,
       token1.address,
       3000,
@@ -810,6 +810,136 @@ describe("GUniPool", function () {
         });
       });
       describe("factory management", function () {
+        it("should create pools correctly", async function () {
+          await gUniFactory.createPool(
+            token0.address,
+            token1.address,
+            3000,
+            -887220,
+            887220
+          );
+          const deployers = await gUniFactory.getDeployers();
+          const deployer = deployers[0];
+          let deployerPools = await gUniFactory.getPools(deployer);
+          let newPool = (await ethers.getContractAt(
+            "GUniPool",
+            deployerPools[deployerPools.length - 1]
+          )) as GUniPool;
+          let newPoolManager = await newPool.manager();
+          expect(newPoolManager).to.equal(ethers.constants.AddressZero);
+          await uniswapFactory.createPool(
+            token0.address,
+            token1.address,
+            "500"
+          );
+          await gUniFactory.createPool(
+            token0.address,
+            token1.address,
+            500,
+            -10,
+            10
+          );
+          deployerPools = await gUniFactory.getPools(deployer);
+          newPool = (await ethers.getContractAt(
+            "GUniPool",
+            deployerPools[deployerPools.length - 1]
+          )) as GUniPool;
+          newPoolManager = await newPool.manager();
+          expect(newPoolManager).to.equal(ethers.constants.AddressZero);
+          let lowerTick = await newPool.lowerTick();
+          let upperTick = await newPool.upperTick();
+          expect(lowerTick).to.equal(-10);
+          expect(upperTick).to.equal(10);
+
+          await uniswapFactory.createPool(
+            token0.address,
+            token1.address,
+            "10000"
+          );
+          await gUniFactory.createPool(
+            token0.address,
+            token1.address,
+            10000,
+            200,
+            600
+          );
+          deployerPools = await gUniFactory.getPools(deployer);
+          newPool = (await ethers.getContractAt(
+            "GUniPool",
+            deployerPools[deployerPools.length - 1]
+          )) as GUniPool;
+          newPoolManager = await newPool.manager();
+          expect(newPoolManager).to.equal(ethers.constants.AddressZero);
+          lowerTick = await newPool.lowerTick();
+          upperTick = await newPool.upperTick();
+          expect(lowerTick).to.equal(200);
+          expect(upperTick).to.equal(600);
+
+          await expect(
+            gUniFactory.createPool(
+              token0.address,
+              token1.address,
+              3000,
+              -10,
+              10
+            )
+          ).to.be.reverted;
+          await expect(
+            gUniFactory.createManagedPool(
+              token0.address,
+              token1.address,
+              3000,
+              0,
+              -10,
+              10
+            )
+          ).to.be.reverted;
+          await expect(
+            gUniFactory.createPool(
+              token0.address,
+              token1.address,
+              10000,
+              -10,
+              10
+            )
+          ).to.be.reverted;
+          await expect(
+            gUniFactory.createManagedPool(
+              token0.address,
+              token1.address,
+              10000,
+              0,
+              -10,
+              10
+            )
+          ).to.be.reverted;
+          await expect(
+            gUniFactory.createPool(token0.address, token1.address, 500, -5, 5)
+          ).to.be.reverted;
+          await expect(
+            gUniFactory.createManagedPool(
+              token0.address,
+              token1.address,
+              500,
+              0,
+              -5,
+              5
+            )
+          ).to.be.reverted;
+          await expect(
+            gUniFactory.createPool(token0.address, token1.address, 500, 100, 0)
+          ).to.be.reverted;
+          await expect(
+            gUniFactory.createManagedPool(
+              token0.address,
+              token1.address,
+              500,
+              0,
+              100,
+              0
+            )
+          ).to.be.reverted;
+        });
         it("should handle implementation upgrades and whitelisting", async function () {
           const manager = await gUniFactory.manager();
           expect(manager).to.equal(await user0.getAddress());
