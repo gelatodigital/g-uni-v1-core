@@ -3,9 +3,9 @@
 
 # G-UNI v1 Core
 
-A shared fungible (ERC20) position for Uniswap V3 passive liquidity providers. This pool is auto rebalanced by gelato network to reinvest accrued fees of the position. The position bounds are static and can only be changed by governance/manager. Manager can be renounced and pool can be made immutable so that it will never change its bounds.
+A shared fungible (ERC20) position for Uniswap V3 passive liquidity providers. G-UNI pools are auto-compounded by gelato network to reinvest accrued fees into the position. The position bounds are static and immutable by default, unless creating a "managed" pool, in which case an `executiveRebalance` can be performed by the governance/manager account which will redeposit liquidity into a new range (see [docs](https://docs-g-uni.gelato.network) for more info).
 
-# overview
+## G-UNI Pool Overview
 
 ### mint
 
@@ -101,7 +101,7 @@ Arguments:
 
 Note: This method can only be called by gelato executors
 
-### executiveRebalance
+### executiveRebalance (for managed pools)
 
 If governance/admin wants to change bounds of the underlying position, or wants to force a rebalance for any other reason, they are allowed to call this executive rebalance function.
 
