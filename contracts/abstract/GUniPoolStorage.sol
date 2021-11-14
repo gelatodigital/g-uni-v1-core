@@ -29,7 +29,7 @@ abstract contract GUniPoolStorage is
     // solhint-disable-next-line const-name-snakecase
     string public constant version = "1.0.0";
     // solhint-disable-next-line const-name-snakecase
-    uint16 public constant gelatoFeeBPS = 200;
+    uint16 public constant gelatoFeeBPS = 250;
 
     // XXXXXXXX DO NOT MODIFY ORDERING XXXXXXXX
     int24 public lowerTick;
