@@ -235,6 +235,7 @@ contract GUniPool is
     /// @param swapThresholdPrice slippage parameter on the swap as a max or min sqrtPriceX96
     /// @param swapAmountBPS amount of token to swap as proportion of total. Pass 0 to ignore swap.
     /// @param zeroForOne Which token to input into the swap (true = token0, false = token1)
+    // solhint-disable-next-line function-max-lines
     function executiveRebalance(
         int24 newLowerTick,
         int24 newUpperTick,
@@ -242,36 +243,48 @@ contract GUniPool is
         uint256 swapAmountBPS,
         bool zeroForOne
     ) external onlyManager {
-        (uint128 liquidity, , , , ) = pool.positions(_getPositionID());
-        if (liquidity > 0) {
-            (, , uint256 fee0, uint256 fee1) =
-                _withdraw(lowerTick, upperTick, liquidity);
+        uint128 liquidity;
+        uint128 newLiquidity;
+        if (totalSupply() > 0) {
+            (liquidity, , , , ) = pool.positions(_getPositionID());
+            if (liquidity > 0) {
+                (, , uint256 fee0, uint256 fee1) =
+                    _withdraw(lowerTick, upperTick, liquidity);
 
-            _applyFees(fee0, fee1);
-            (fee0, fee1) = _subtractAdminFees(fee0, fee1);
-            emit FeesEarned(fee0, fee1);
+                _applyFees(fee0, fee1);
+                (fee0, fee1) = _subtractAdminFees(fee0, fee1);
+                emit FeesEarned(fee0, fee1);
+            }
+
+            lowerTick = newLowerTick;
+            upperTick = newUpperTick;
+
+            uint256 reinvest0 =
+                token0.balanceOf(address(this)) -
+                    managerBalance0 -
+                    gelatoBalance0;
+            uint256 reinvest1 =
+                token1.balanceOf(address(this)) -
+                    managerBalance1 -
+                    gelatoBalance1;
+
+            _deposit(
+                newLowerTick,
+                newUpperTick,
+                reinvest0,
+                reinvest1,
+                swapThresholdPrice,
+                swapAmountBPS,
+                zeroForOne
+            );
+
+            (newLiquidity, , , , ) = pool.positions(_getPositionID());
+            require(newLiquidity > 0, "new position 0");
+        } else {
+            lowerTick = newLowerTick;
+            upperTick = newUpperTick;
         }
 
-        lowerTick = newLowerTick;
-        upperTick = newUpperTick;
-
-        uint256 reinvest0 =
-            token0.balanceOf(address(this)) - managerBalance0 - gelatoBalance0;
-        uint256 reinvest1 =
-            token1.balanceOf(address(this)) - managerBalance1 - gelatoBalance1;
-
-        _deposit(
-            newLowerTick,
-            newUpperTick,
-            reinvest0,
-            reinvest1,
-            swapThresholdPrice,
-            swapAmountBPS,
-            zeroForOne
-        );
-
-        (uint128 newLiquidity, , , , ) = pool.positions(_getPositionID());
-        require(newLiquidity > 0, "new position 0");
         emit Rebalance(newLowerTick, newUpperTick, liquidity, newLiquidity);
     }
 
