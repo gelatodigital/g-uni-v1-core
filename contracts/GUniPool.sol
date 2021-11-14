@@ -314,7 +314,7 @@ contract GUniPool is
         );
 
         (uint128 newLiquidity, , , , ) = pool.positions(_getPositionID());
-        require(newLiquidity >= liquidity, "liquidity decrease");
+        require(newLiquidity > liquidity, "liquidity must increase");
 
         emit Rebalance(lowerTick, upperTick, liquidity, newLiquidity);
     }
