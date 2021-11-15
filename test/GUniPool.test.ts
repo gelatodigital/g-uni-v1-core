@@ -143,6 +143,8 @@ describe("GUniPool", function () {
     expect(pools.length).to.equal(gelatoPools.length);
 
     gUniPool = (await ethers.getContractAt("GUniPool", pools[0])) as GUniPool;
+    const gelatoFee = await gUniPool.gelatoFeeBPS();
+    expect(gelatoFee.toString()).to.equal("250");
   });
 
   describe("Before liquidity deposited", function () {
@@ -249,6 +251,10 @@ describe("GUniPool", function () {
     });
 
     describe("onlyManager", function () {
+      it("should be possible to executiveRebalance before deposits", async function () {
+        await gUniPool.executiveRebalance(-887220, 0, 0, 0, false);
+        await gUniPool.executiveRebalance(-887220, 887220, 0, 0, false);
+      });
       it("should fail if not called by manager", async function () {
         await expect(
           gUniPool
