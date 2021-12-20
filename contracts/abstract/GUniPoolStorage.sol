@@ -13,6 +13,9 @@ import {
 import {
     ERC20Upgradeable
 } from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {
+    INonfungiblePositionManager
+} from "../vendor/uniswap/INonfungiblePositionManager.sol";
 
 /// @dev Single Global upgradeable state var storage base: APPEND ONLY
 /// @dev Add all inherited contracts with state vars here: APPEND ONLY
@@ -30,6 +33,7 @@ abstract contract GUniPoolStorage is
     string public constant version = "1.0.0";
     // solhint-disable-next-line const-name-snakecase
     uint16 public constant gelatoFeeBPS = 250;
+    INonfungiblePositionManager public immutable positionManager;
 
     // XXXXXXXX DO NOT MODIFY ORDERING XXXXXXXX
     int24 public lowerTick;
@@ -52,6 +56,7 @@ abstract contract GUniPoolStorage is
     IERC20 public token0;
     IERC20 public token1;
     // APPPEND ADDITIONAL STATE VARS BELOW:
+    uint256 public currentTokenId;
     // XXXXXXXX DO NOT MODIFY ORDERING XXXXXXXX
 
     event UpdateAdminTreasury(
@@ -68,8 +73,12 @@ abstract contract GUniPoolStorage is
 
     event SetManagerFee(uint16 managerFee);
 
-    // solhint-disable-next-line max-line-length
-    constructor(address payable _gelato) Gelatofied(_gelato) {} // solhint-disable-line no-empty-blocks
+    constructor(
+        address payable _gelato,
+        INonfungiblePositionManager _nftPositions
+    ) Gelatofied(_gelato) {
+        positionManager = _nftPositions;
+    }
 
     /// @notice initialize storage variables on a new G-UNI pool, only called once
     /// @param _name name of G-UNI token
@@ -165,13 +174,5 @@ abstract contract GUniPoolStorage is
         managerBalance0 = 0;
         managerBalance1 = 0;
         super.renounceOwnership();
-    }
-
-    function getPositionID() external view returns (bytes32 positionID) {
-        return _getPositionID();
-    }
-
-    function _getPositionID() internal view returns (bytes32 positionID) {
-        return keccak256(abi.encodePacked(address(this), lowerTick, upperTick));
     }
 }
