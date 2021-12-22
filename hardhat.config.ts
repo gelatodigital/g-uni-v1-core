@@ -45,10 +45,14 @@ const config: HardhatUserConfig = {
       chainId: 4,
       url: `https://eth-rinkeby.alchemyapi.io/v2/${ALCHEMY_ID}`,
     },
-    ropsten: {
-      accounts: DEPLOYER_PK ? [DEPLOYER_PK] : [],
-      chainId: 3,
-      url: `https://eth-ropsten.alchemyapi.io/v2/${ALCHEMY_ID}`,
+    polygon: {
+      accounts: DEPLOYER_PK_MAINNET
+        ? [DEPLOYER_PK_MAINNET]
+        : DEPLOYER_PK
+        ? [DEPLOYER_PK]
+        : [],
+      chainId: 137,
+      url: `https://polygon-mainnet.g.alchemy.com/v2/${ALCHEMY_ID}`,
     },
     goerli: {
       accounts: DEPLOYER_PK ? [DEPLOYER_PK] : [],

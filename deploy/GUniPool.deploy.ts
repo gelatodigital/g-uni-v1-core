@@ -4,12 +4,7 @@ import { DeployFunction } from "hardhat-deploy/types";
 import { getAddresses } from "../src/addresses";
 
 const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
-  if (
-    hre.network.name === "mainnet" ||
-    hre.network.name === "rinkeby" ||
-    hre.network.name === "ropsten" ||
-    hre.network.name === "goerli"
-  ) {
+  if (hre.network.name === "mainnet" || hre.network.name === "polygon") {
     console.log(
       `!! Deploying GUniPool to ${hre.network.name}. Hit ctrl + c to abort`
     );
@@ -29,8 +24,7 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
 func.skip = async (hre: HardhatRuntimeEnvironment) => {
   const shouldSkip =
     hre.network.name === "mainnet" ||
-    hre.network.name === "rinkeby" ||
-    hre.network.name === "ropsten" ||
+    hre.network.name === "polygon" ||
     hre.network.name === "goerli";
   return shouldSkip ? true : false;
 };
