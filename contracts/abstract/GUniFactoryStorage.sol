@@ -18,7 +18,7 @@ contract GUniFactoryStorage is
 {
     // XXXXXXXX DO NOT MODIFY ORDERING XXXXXXXX
     // solhint-disable-next-line const-name-snakecase
-    string public constant version = "2.0.0";
+    string public constant version = "1.1.0";
     address public immutable factory;
     address public poolImplementation;
     address public gelatoDeployer;
@@ -72,7 +72,7 @@ contract GUniFactoryStorage is
         onlyManager
     {
         emit UpdateRestrictedPoolImplementation(
-            poolImplementation,
+            restrictedPoolImplementation,
             nextImplementation
         );
         restrictedPoolImplementation = nextImplementation;

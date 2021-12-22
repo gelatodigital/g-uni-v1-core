@@ -987,7 +987,27 @@ describe("GUniPool", function () {
           await gUniFactory.setPoolImplementation(ethers.constants.AddressZero);
           const implementationAfter = await gUniFactory.poolImplementation();
           expect(implementationAfter).to.equal(ethers.constants.AddressZero);
+          const rImplementationBefore =
+            await gUniFactory.restrictedPoolImplementation();
+          expect(rImplementationBefore).to.equal(implementationAddress);
+          await gUniFactory.setRestrictedPoolImplementation(
+            ethers.constants.AddressZero
+          );
+          const rImplementationAfter =
+            await gUniFactory.restrictedPoolImplementation();
+          expect(rImplementationAfter).to.equal(ethers.constants.AddressZero);
           await gUniFactory.upgradePools([gUniPool.address], [false]);
+          await gUniFactory.upgradePools([gUniPool.address], [true]);
+          await gUniFactory.upgradePoolsAndCall(
+            [gUniPool.address],
+            ["0x"],
+            [false]
+          );
+          await gUniFactory.upgradePoolsAndCall(
+            [gUniPool.address],
+            ["0x"],
+            [true]
+          );
           await expect(gUniPool.totalSupply()).to.be.reverted;
           const proxyAdmin = await gUniFactory.getProxyAdmin(gUniPool.address);
           expect(proxyAdmin).to.equal(gUniFactory.address);
