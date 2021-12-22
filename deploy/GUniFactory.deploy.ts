@@ -23,6 +23,21 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
 
   await deploy("GUniFactory", {
     from: deployer,
+    proxy: {
+      proxyContract: "EIP173Proxy",
+      owner: addresses.GelatoDevMultiSig,
+      execute: {
+        init: {
+          methodName: "initialize",
+          args: [
+            addresses.GUniImplementation,
+            addresses.GUniRestrictedImplementation,
+            addresses.GelatoDevMultiSig,
+            addresses.GelatoDevMultiSig,
+          ],
+        },
+      },
+    },
     args: [addresses.UniswapV3Factory],
   });
 };

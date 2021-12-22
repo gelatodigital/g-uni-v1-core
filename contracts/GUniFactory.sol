@@ -50,7 +50,29 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
                 managerFee,
                 lowerTick,
                 upperTick,
-                msg.sender
+                msg.sender,
+                false
+            );
+    }
+
+    function createRestrictedPool(
+        address tokenA,
+        address tokenB,
+        uint24 uniFee,
+        uint16 managerFee,
+        int24 lowerTick,
+        int24 upperTick
+    ) external override returns (address pool) {
+        return
+            _createPool(
+                tokenA,
+                tokenB,
+                uniFee,
+                managerFee,
+                lowerTick,
+                upperTick,
+                msg.sender,
+                true
             );
     }
 
@@ -78,10 +100,12 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
                 0,
                 lowerTick,
                 upperTick,
-                address(0)
+                address(0),
+                false
             );
     }
 
+    // solhint-disable-next-line function-max-lines
     function _createPool(
         address tokenA,
         address tokenB,
@@ -89,11 +113,18 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
         uint16 managerFee,
         int24 lowerTick,
         int24 upperTick,
-        address manager
+        address manager,
+        bool restricted
     ) internal returns (address pool) {
         (address token0, address token1) = _getTokenOrder(tokenA, tokenB);
 
-        pool = address(new EIP173Proxy(poolImplementation, address(this), ""));
+        pool = address(
+            new EIP173Proxy(
+                restricted ? restrictedPoolImplementation : poolImplementation,
+                address(this),
+                ""
+            )
+        );
 
         string memory name = "Gelato Uniswap LP";
         try this.getTokenName(token0, token1) returns (string memory result) {
@@ -145,20 +176,30 @@ contract GUniFactory is GUniFactoryStorage, IGUniFactory {
         return _append("Gelato Uniswap ", symbol0, "/", symbol1, " LP");
     }
 
-    function upgradePools(address[] memory pools) external onlyManager {
-        for (uint256 i = 0; i < pools.length; i++) {
-            IEIP173Proxy(pools[i]).upgradeTo(poolImplementation);
-        }
-    }
-
-    function upgradePoolsAndCall(address[] memory pools, bytes[] calldata datas)
+    function upgradePools(address[] memory pools, bool[] memory isRestricted)
         external
         onlyManager
     {
+        for (uint256 i = 0; i < pools.length; i++) {
+            IEIP173Proxy(pools[i]).upgradeTo(
+                isRestricted[i]
+                    ? restrictedPoolImplementation
+                    : poolImplementation
+            );
+        }
+    }
+
+    function upgradePoolsAndCall(
+        address[] memory pools,
+        bytes[] calldata datas,
+        bool[] memory isRestricted
+    ) external onlyManager {
         require(pools.length == datas.length, "mismatching array length");
         for (uint256 i = 0; i < pools.length; i++) {
             IEIP173Proxy(pools[i]).upgradeToAndCall(
-                poolImplementation,
+                isRestricted[i]
+                    ? restrictedPoolImplementation
+                    : poolImplementation,
                 datas[i]
             );
         }

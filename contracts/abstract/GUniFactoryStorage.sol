@@ -18,16 +18,22 @@ contract GUniFactoryStorage is
 {
     // XXXXXXXX DO NOT MODIFY ORDERING XXXXXXXX
     // solhint-disable-next-line const-name-snakecase
-    string public constant version = "1.0.0";
+    string public constant version = "2.0.0";
     address public immutable factory;
     address public poolImplementation;
     address public gelatoDeployer;
     EnumerableSet.AddressSet internal _deployers;
     mapping(address => EnumerableSet.AddressSet) internal _pools;
     // APPPEND ADDITIONAL STATE VARS BELOW:
+    address public restrictedPoolImplementation;
     // XXXXXXXX DO NOT MODIFY ORDERING XXXXXXXX
 
     event UpdatePoolImplementation(
+        address previousImplementation,
+        address newImplementation
+    );
+
+    event UpdateRestrictedPoolImplementation(
         address previousImplementation,
         address newImplementation
     );
@@ -43,10 +49,12 @@ contract GUniFactoryStorage is
 
     function initialize(
         address _implementation,
+        address _restrictedImplementation,
         address _gelatoDeployer,
         address _manager_
     ) external initializer {
         poolImplementation = _implementation;
+        restrictedPoolImplementation = _restrictedImplementation;
         gelatoDeployer = _gelatoDeployer;
         _manager = _manager_;
     }
@@ -57,6 +65,17 @@ contract GUniFactoryStorage is
     {
         emit UpdatePoolImplementation(poolImplementation, nextImplementation);
         poolImplementation = nextImplementation;
+    }
+
+    function setRestrictedPoolImplementation(address nextImplementation)
+        external
+        onlyManager
+    {
+        emit UpdateRestrictedPoolImplementation(
+            poolImplementation,
+            nextImplementation
+        );
+        restrictedPoolImplementation = nextImplementation;
     }
 
     function setGelatoDeployer(address nextGelatoDeployer)

@@ -10,7 +10,7 @@ import {
   GUniFactory,
   EIP173Proxy,
 } from "../typechain";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signer-with-address";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signers";
 
 // eslint-disable-next-line
 BigNumber.config({ EXPONENTIAL_AT: 999999, DECIMAL_PLACES: 40 });
@@ -61,7 +61,9 @@ describe("GUniPool", function () {
     const uniswapV3Factory = await ethers.getContractFactory(
       "UniswapV3Factory"
     );
+
     const uniswapDeploy = await uniswapV3Factory.deploy();
+
     uniswapFactory = (await ethers.getContractAt(
       "IUniswapV3Factory",
       uniswapDeploy.address
@@ -92,11 +94,13 @@ describe("GUniPool", function () {
     }
 
     await uniswapFactory.createPool(token0.address, token1.address, "3000");
+
     uniswapPoolAddress = await uniswapFactory.getPool(
       token0.address,
       token1.address,
       "3000"
     );
+
     uniswapPool = (await ethers.getContractAt(
       "IUniswapV3Pool",
       uniswapPoolAddress
@@ -112,13 +116,16 @@ describe("GUniPool", function () {
 
     implementationAddress = gUniImplementation.address;
 
-    const gUniFactoryFactory = await ethers.getContractFactory("GUniFactory");
+    const gUniFactoryImplFactory = await ethers.getContractFactory(
+      "GUniFactory"
+    );
 
-    gUniFactory = (await gUniFactoryFactory.deploy(
+    gUniFactory = (await gUniFactoryImplFactory.deploy(
       uniswapFactory.address
     )) as GUniFactory;
 
     await gUniFactory.initialize(
+      implementationAddress,
       implementationAddress,
       await user0.getAddress(),
       await user0.getAddress()
@@ -952,12 +959,14 @@ describe("GUniPool", function () {
 
           // only manager should be able to call permissioned functions
           await expect(
-            gUniFactory.connect(gelato).upgradePools([gUniPool.address])
+            gUniFactory
+              .connect(gelato)
+              .upgradePools([gUniPool.address], [false])
           ).to.be.reverted;
           await expect(
             gUniFactory
               .connect(gelato)
-              .upgradePoolsAndCall([gUniPool.address], ["0x"])
+              .upgradePoolsAndCall([gUniPool.address], ["0x"], [false])
           ).to.be.reverted;
           await expect(
             gUniFactory.connect(gelato).makePoolsImmutable([gUniPool.address])
@@ -978,7 +987,7 @@ describe("GUniPool", function () {
           await gUniFactory.setPoolImplementation(ethers.constants.AddressZero);
           const implementationAfter = await gUniFactory.poolImplementation();
           expect(implementationAfter).to.equal(ethers.constants.AddressZero);
-          await gUniFactory.upgradePools([gUniPool.address]);
+          await gUniFactory.upgradePools([gUniPool.address], [false]);
           await expect(gUniPool.totalSupply()).to.be.reverted;
           const proxyAdmin = await gUniFactory.getProxyAdmin(gUniPool.address);
           expect(proxyAdmin).to.equal(gUniFactory.address);
@@ -987,8 +996,8 @@ describe("GUniPool", function () {
           );
           expect(isNotImmutable).to.be.false;
           await gUniFactory.makePoolsImmutable([gUniPool.address]);
-          await expect(gUniFactory.upgradePools([gUniPool.address])).to.be
-            .reverted;
+          await expect(gUniFactory.upgradePools([gUniPool.address], [false])).to
+            .be.reverted;
           const poolProxy = (await ethers.getContractAt(
             "EIP173Proxy",
             gUniPool.address
