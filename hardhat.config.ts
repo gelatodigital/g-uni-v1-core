@@ -32,27 +32,19 @@ const config: HardhatUserConfig = {
 
   networks: {
     mainnet: {
-      accounts: DEPLOYER_PK_MAINNET
-        ? [DEPLOYER_PK_MAINNET]
-        : DEPLOYER_PK
-        ? [DEPLOYER_PK]
-        : [],
+      accounts: DEPLOYER_PK_MAINNET ? [DEPLOYER_PK_MAINNET] : [],
       chainId: 1,
       url: `https://eth-mainnet.alchemyapi.io/v2/${ALCHEMY_ID}`,
     },
-    rinkeby: {
-      accounts: DEPLOYER_PK ? [DEPLOYER_PK] : [],
-      chainId: 4,
-      url: `https://eth-rinkeby.alchemyapi.io/v2/${ALCHEMY_ID}`,
-    },
     polygon: {
-      accounts: DEPLOYER_PK_MAINNET
-        ? [DEPLOYER_PK_MAINNET]
-        : DEPLOYER_PK
-        ? [DEPLOYER_PK]
-        : [],
+      accounts: DEPLOYER_PK_MAINNET ? [DEPLOYER_PK_MAINNET] : [],
       chainId: 137,
       url: `https://polygon-mainnet.g.alchemy.com/v2/${ALCHEMY_ID}`,
+    },
+    optimism: {
+      accounts: DEPLOYER_PK_MAINNET ? [DEPLOYER_PK_MAINNET] : [],
+      chainId: 10,
+      url: `https://opt-mainnet.g.alchemy.com/v2/${ALCHEMY_ID}`,
     },
     goerli: {
       accounts: DEPLOYER_PK ? [DEPLOYER_PK] : [],

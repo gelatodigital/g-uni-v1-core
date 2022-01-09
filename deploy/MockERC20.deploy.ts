@@ -3,7 +3,11 @@ import { HardhatRuntimeEnvironment } from "hardhat/types";
 import { DeployFunction } from "hardhat-deploy/types";
 
 const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
-  if (hre.network.name === "mainnet" || hre.network.name === "polygon") {
+  if (
+    hre.network.name === "mainnet" ||
+    hre.network.name === "optimism" ||
+    hre.network.name === "polygon"
+  ) {
     console.log(
       `!! Deploying MockERC20 to ${hre.network.name}. Hit ctrl + c to abort`
     );
@@ -22,6 +26,7 @@ func.skip = async (hre: HardhatRuntimeEnvironment) => {
   const shouldSkip =
     hre.network.name === "mainnet" ||
     hre.network.name === "polygon" ||
+    hre.network.name === "optimism" ||
     hre.network.name === "goerli";
   return shouldSkip ? true : false;
 };
