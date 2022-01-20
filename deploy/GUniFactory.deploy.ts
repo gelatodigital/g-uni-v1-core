@@ -4,7 +4,11 @@ import { DeployFunction } from "hardhat-deploy/types";
 import { getAddresses } from "../src/addresses";
 
 const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
-  if (hre.network.name === "mainnet" || hre.network.name === "polygon") {
+  if (
+    hre.network.name === "mainnet" ||
+    hre.network.name === "optimism" ||
+    hre.network.name === "polygon"
+  ) {
     console.log(
       `!! Deploying GUniFactory to ${hre.network.name}. Hit ctrl + c to abort`
     );
@@ -39,6 +43,7 @@ func.skip = async (hre: HardhatRuntimeEnvironment) => {
   const shouldSkip =
     hre.network.name === "mainnet" ||
     hre.network.name === "polygon" ||
+    hre.network.name === "optimism" ||
     hre.network.name === "goerli";
   return shouldSkip ? true : false;
 };

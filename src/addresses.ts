@@ -25,6 +25,18 @@ export const getAddresses = (network: string): Addresses => {
         GUniFactory: "0xEA1aFf9dbFfD1580F6b81A3ad3589E66652dB7D9",
         GUniImplementation: "",
       };
+    case "optimism":
+      return {
+        Gelato: "0x01051113D81D7d6DA508462F2ad6d7fD96cF42Ef",
+        Swapper: "",
+        GelatoDevMultiSig: "",
+        WETH: "",
+        DAI: "",
+        USDC: "",
+        UniswapV3Factory: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+        GUniFactory: "0x2845c6929d621e32B7596520C8a1E5a37e616F09",
+        GUniImplementation: "0x8582Bf142BE76fEF830D23f590a2587f2aD7C216",
+      };
     case "polygon":
       return {
         Gelato: "0x7598e84B2E114AB62CAB288CE5f7d5f6bad35BbA",
