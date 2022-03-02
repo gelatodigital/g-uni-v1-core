@@ -8,7 +8,6 @@ interface Addresses {
   Swapper: string;
   GelatoDevMultiSig: string;
   GUniFactory: string;
-  GUniImplementation: string;
 }
 
 export const getAddresses = (network: string): Addresses => {
@@ -23,7 +22,6 @@ export const getAddresses = (network: string): Addresses => {
         USDC: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
         UniswapV3Factory: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
         GUniFactory: "0xEA1aFf9dbFfD1580F6b81A3ad3589E66652dB7D9",
-        GUniImplementation: "",
       };
     case "optimism":
       return {
@@ -35,7 +33,6 @@ export const getAddresses = (network: string): Addresses => {
         USDC: "",
         UniswapV3Factory: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
         GUniFactory: "0x2845c6929d621e32B7596520C8a1E5a37e616F09",
-        GUniImplementation: "0x8582Bf142BE76fEF830D23f590a2587f2aD7C216",
       };
     case "polygon":
       return {
@@ -47,7 +44,6 @@ export const getAddresses = (network: string): Addresses => {
         USDC: "",
         UniswapV3Factory: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
         GUniFactory: "0x37265A834e95D11c36527451c7844eF346dC342a",
-        GUniImplementation: "0xd2Bb190dD88e7Af5DF176064Ec42f6dfA8672F40",
       };
     case "goerli":
       return {
@@ -59,7 +55,17 @@ export const getAddresses = (network: string): Addresses => {
         USDC: "",
         UniswapV3Factory: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
         GUniFactory: "",
-        GUniImplementation: "",
+      };
+    case "rinkeby":
+      return {
+        Gelato: "Add address here",
+        Swapper: "",
+        GelatoDevMultiSig: "Add address here",
+        WETH: "",
+        DAI: "",
+        USDC: "",
+        UniswapV3Factory: "0x1F98431c8aD98523631AE4a59f267346ea31F984", // uniswap is already deployed in "all" testnets
+        GUniFactory: "",
       };
     default:
       throw new Error(`No addresses for Network: ${network}`);

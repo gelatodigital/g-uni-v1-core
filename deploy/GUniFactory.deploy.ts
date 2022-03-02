@@ -19,6 +19,8 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   const { deployer } = await getNamedAccounts();
   const addresses = getAddresses(hre.network.name);
 
+  const guniPool = await deployments.get("GUniPool");
+
   await deploy("GUniFactory", {
     from: deployer,
     proxy: {
@@ -28,7 +30,7 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
         init: {
           methodName: "initialize",
           args: [
-            addresses.GUniImplementation,
+            guniPool.address,
             addresses.GelatoDevMultiSig,
             addresses.GelatoDevMultiSig,
           ],
@@ -49,5 +51,7 @@ func.skip = async (hre: HardhatRuntimeEnvironment) => {
 };
 
 func.tags = ["GUniFactory"];
+
+func.dependencies = ["GUniPool"];
 
 export default func;
